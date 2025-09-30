@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import LoginForm from "./LoginPage";
 import RegisterForm from "./RegistrationPage";
 import "./FirstPage.css";
-import firebase from "../Firebase";
+
+import { auth ,db} from '../Firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 // Logo Component
 const AuthLogo = () => {
@@ -17,7 +20,7 @@ const AuthLogo = () => {
 };
 
 export default function FirstPage() {
-  const ref=firebase.firestore().collection("")
+
   const [activeTab, setActiveTab] = useState("login"); // "login" | "register"
   const [form, setForm] = useState({
     username: "",
@@ -35,29 +38,80 @@ export default function FirstPage() {
   };
 
   // API: Register
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const response = await fetch("http://localhost:8000/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+  // const handleRegister = async (e) => {
+  //   e.preventDefault();
+  //   setLoading(true);
+  //   try {
+  //     const response = await fetch("http://localhost:8000/api/register", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(form),
+  //     });
 
-      if (response.ok) {
-        alert("Registered Successfully! Please check your email for OTP.");
-        navigate("/otp", { state: { email: form.email } });
-      } else {
-        const err = await response.json();
-        alert("Registration failed: " + (err.error || JSON.stringify(err)));
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Something went wrong during registration.");
-    }
-    setLoading(false);
-  };
+  //     if (response.ok) {
+  //       alert("Registered Successfully! Please check your email for OTP.");
+  //       navigate("/otp", { state: { email: form.email } });
+  //     } else {
+  //       const err = await response.json();
+  //       alert("Registration failed: " + (err.error || JSON.stringify(err)));
+  //     }
+  //   } catch (error) {
+  //     console.error("Error:", error);
+  //     alert("Something went wrong during registration.");
+  //   }
+  //   setLoading(false);
+  // };
+//   const handleRegister = async (form) => {
+//   const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+//   const user = userCredential.user;
+//   const idToken = await user.getIdToken();
+//   // Send to backend for MongoDB
+//   await fetch('/api/register', {
+//     method: 'POST',
+//     headers: {
+//       'Content-Type': 'application/json',
+//       'Authorization': `Bearer ${idToken}`
+//     },
+//     body: JSON.stringify({ uid: user.uid, email: user.email, username: form.username, usertype: form.usertype })
+//   });
+// };
+
+const handleRegister = async (form) => {
+  try {
+    // 1. Register
+    
+    const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+    const user = userCredential.user;
+
+    // 2. Store extra info in Firestore
+    await setDoc(doc(db, 'users', user.uid), {
+      email: user.email,
+      username: form.username,
+      uid: user.uid,
+      usertype: form.usertype,
+       // or username, etc.
+      // add any other fields you want
+    });
+    const idToken = await user.getIdToken();
+    await fetch('/api/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        name: form.name
+        // ...other fields
+      })
+    });
+
+    alert('Registration successful!');
+  } catch (error) {
+    alert(error.message);
+  }
+};
 
   // API: Login
   const handleLogin = async (e) => {
