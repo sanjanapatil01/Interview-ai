@@ -5,7 +5,7 @@ import RegisterForm from "./RegistrationPage";
 import "./FirstPage.css";
 
 import { auth ,db} from '../Firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword ,signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 
 // Logo Component
@@ -37,93 +37,97 @@ export default function FirstPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // API: Register
-  // const handleRegister = async (e) => {
-  //   e.preventDefault();
-  //   setLoading(true);
-  //   try {
-  //     const response = await fetch("http://localhost:8000/api/register", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(form),
-  //     });
-
-  //     if (response.ok) {
-  //       alert("Registered Successfully! Please check your email for OTP.");
-  //       navigate("/otp", { state: { email: form.email } });
-  //     } else {
-  //       const err = await response.json();
-  //       alert("Registration failed: " + (err.error || JSON.stringify(err)));
-  //     }
-  //   } catch (error) {
-  //     console.error("Error:", error);
-  //     alert("Something went wrong during registration.");
-  //   }
-  //   setLoading(false);
-  // };
-//   const handleRegister = async (form) => {
-//   const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
-//   const user = userCredential.user;
-//   const idToken = await user.getIdToken();
-//   // Send to backend for MongoDB
-//   await fetch('/api/register', {
-//     method: 'POST',
-//     headers: {
-//       'Content-Type': 'application/json',
-//       'Authorization': `Bearer ${idToken}`
-//     },
-//     body: JSON.stringify({ uid: user.uid, email: user.email, username: form.username, usertype: form.usertype })
-//   });
-// };
-
-const handleRegister = async (form) => {
-  try {
-    // 1. Register
+  // API: Register - CORRECTED FOR OTP FLOW
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
     
-    const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
-    const user = userCredential.user;
+    if (form.password !== form.confirm_password) {
+        setLoading(false);
+        return alert("Passwords do not match.");
+    }
+    
+    try {
+      // 1. Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      const user = userCredential.user;
 
-    // 2. Store extra info in Firestore
-    await setDoc(doc(db, 'users', user.uid), {
-      email: user.email,
-      username: form.username,
-      uid: user.uid,
-      usertype: form.usertype,
-       // or username, etc.
-      // add any other fields you want
-    });
-    const idToken = await user.getIdToken();
-    await fetch('/api/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`
-      },
-      body: JSON.stringify({
-        uid: user.uid,
+      // 2. Store extra info in Firestore (Optional)
+      await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
-        name: form.name
-        // ...other fields
-      })
-    });
+        username: form.username,
+        uid: user.uid,
+        usertype: form.usertype,
+      });
 
-    alert('Registration successful!');
-  } catch (error) {
-    alert(error.message);
-  }
-};
+      // 3. Send data to backend to save to MongoDB and SEND OTP
+      const response = await fetch('http://localhost:8000/api/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: form.email,
+          username: form.username, 
+          usertype: form.usertype,
+        })
+      });
 
-  // API: Login
+      if (response.ok) {
+        // Successful response
+        const data = await response.json(); 
+        
+        // 4. Navigate to OTP verification page
+        alert('Registration successful! Please check your email for the verification code.');
+        navigate('/otp', { state: { email: form.email } });
+
+      } else {
+        // Handle non-200/201 responses
+        try {
+            const err = await response.json();
+            alert('Registration failed: ' + (err.error || JSON.stringify(err)));
+        } catch (e) {
+            // Catches non-JSON error (like the 401 'Unauthorized' issue)
+            alert(`Registration failed: Server returned non-JSON error (Status: ${response.status}). If the status is 401, check your main Express file for global authentication middleware.`);
+        }
+        
+        // You may want to delete the Firebase user here if the MongoDB save/OTP send failed
+        // await user.delete(); 
+      }
+
+    } catch (error) {
+      console.error("Registration Error:", error);
+      alert('Registration failed: ' + error.message);
+    }
+    setLoading(false);
+  };
+
+
+  // API: Login - CORRECTED TO CHECK FOR VERIFICATION STATUS
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      const loginIdentifier = form.username; 
+      
+      if (!loginIdentifier.includes('@')) {
+          throw new Error("Please enter your email address to sign in (must contain '@').");
+      }
+
+      const userCredential = await signInWithEmailAndPassword(auth, loginIdentifier, form.password);
+      const user = userCredential.user;
+      const idToken = await user.getIdToken();
+
+      // 2. Call backend API to exchange token and check verification status
       const response = await fetch("http://localhost:8000/api/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}` // Pass the Firebase token
+        },
         body: JSON.stringify({
-          username: form.username,
-          password: form.password,
+          uid: user.uid,
         }),
       });
 
@@ -133,12 +137,23 @@ const handleRegister = async (form) => {
         alert("Login Successful!");
         navigate("/home");
       } else {
-        const err = await response.json();
-        alert("Login failed: " + (err.error || JSON.stringify(err)));
+        // Handle login errors gracefully
+        try {
+            const err = await response.json();
+             // Check for specific verification pending error (status 403)
+            if (response.status === 403 && err.error && err.error.includes("Please verify your email")) {
+                 alert(err.error + " Redirecting to OTP page.");
+                 navigate('/otp', { state: { email: loginIdentifier } }); 
+            } else {
+                alert("Login failed: " + (err.error || JSON.stringify(err)));
+            }
+        } catch (e) {
+            alert(`Login failed: Server returned non-JSON error (Status: ${response.status}). Check server logs for details.`);
+        }
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("Something went wrong during login.");
+      alert("Something went wrong during login: " + error.message);
     }
     setLoading(false);
   };

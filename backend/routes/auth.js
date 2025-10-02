@@ -6,6 +6,11 @@ const User = require("../models/User");
 
 const router = express.Router();
 
+// Add Firebase Admin SDK setup
+const admin = require('firebase-admin');
+const serviceAccount = require("./interviewai-237e4-firebase-adminsdk-fbsvc-a57c0a1336.json"); // Ensure path is correct
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+
 // Send OTP via email
 const sendOtpEmail = async (email, otp) => {
   let transporter = nodemailer.createTransport({
@@ -21,34 +26,66 @@ const sendOtpEmail = async (email, otp) => {
   });
 };
 
-// Register
-router.post("/register", async (req, res) => {
+// Middleware to verify ID token (used for login and authenticated routes)
+async function authenticate(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    // FIX: Return JSON response for 401
+    return res.status(401).json({ error: "No authorization token provided." });
+  }
   try {
-    const { username, email, password, usertype } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.firebaseUser = decoded;
+    next();
+  } catch (err) {
+    // FIX: Return JSON response for 401
+    return res.status(401).json({ error: "Invalid or expired authorization token." });
+  }
+}
 
+// Register route - **CRITICAL FIX: Removed 'authenticate' middleware**
+// This route MUST be public to allow initial user save and OTP generation.
+router.post('/register', async (req, res) => {
+  const { uid, username, email, usertype } = req.body;
+
+  if (!uid || !email || !username) {
+    return res.status(400).json({ error: "Missing required registration fields." });
+  }
+
+  try {
+    // 1. Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 10 * 60 * 1000;
+    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    const user = new User({
-      username,
-      email,
-      password: hashedPassword,
-      usertype,
-      otp,
-      otpExpires,
-    });
-
-    await user.save();
+    // 2. Save/Update user data in MongoDB (including OTP status)
+    await User.updateOne(
+      { uid },
+      { $set: { 
+          username, 
+          email, 
+          usertype, 
+          password: "FIREBASE_MANAGED_USER_NO_PASSWORD_HASH", // Placeholder for Mongoose requirement
+          otp, 
+          otpExpires,
+        } 
+      }, 
+      { upsert: true }
+    );
+    
+    // 3. Send OTP Email
     await sendOtpEmail(email, otp);
 
-    res.status(201).json({ message: "Registered successfully. OTP sent!" });
+    res.json({ message: 'User profile created. OTP sent for verification.' });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error("MongoDB Register Error:", err);
+    if (err.code === 11000) {
+        return res.status(409).json({ error: "Username or Email already in use." });
+    }
+    res.status(500).json({ error: "Failed to save user and send OTP." });
   }
 });
 
-// Verify OTP
+// Verify OTP - **MUST BE PUBLIC**
 router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -63,34 +100,39 @@ router.post("/verify-otp", async (req, res) => {
     user.otpExpires = null;
     await user.save();
 
-    res.json({ message: "OTP Verified!" });
+    // Issue JWT upon successful OTP verification
+    const token = jwt.sign({ id: user._id, uid: user.uid }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.json({ token, message: "OTP Verified!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Login
-router.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+// Login - **MUST BE AUTHENTICATED**
+router.post("/login", authenticate, async (req, res) => {
+  const firebaseUid = req.firebaseUser.uid; 
 
-  // Match either username OR email
-  const user = await User.findOne({
-    $or: [{ username: username }, { email: username }],
-  });
+  try {
+    const user = await User.findOne({ uid: firebaseUid });
 
-  if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+        return res.status(404).json({ error: "User profile not found in database. Please register again." });
+    }
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
+    // Block login if OTP is pending (Status 403)
+    if (user.otp !== null) {
+      return res.status(403).json({ error: "Please verify your email with OTP before logging in." });
+    }
 
-  // (Optional) check if OTP was verified
-  if (user.otp !== null) {
-    return res.status(400).json({ error: "Please verify your email with OTP before logging in" });
+    // Generate a custom JWT token
+    const token = jwt.sign({ id: user._id, uid: user.uid }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.json({ token, message: "Login successful" });
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ error: "An internal server error occurred during login." });
   }
-
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-  res.json({ token, message: "Login successful" });
 });
 
 
