@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyB6TX9BCXS0jzIyufXe3AabptVAGUjmqMY",
   authDomain: "interviewai-237e4.firebaseapp.com",
