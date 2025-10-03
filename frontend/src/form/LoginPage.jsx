@@ -31,7 +31,7 @@ export default function LoginPage({ form={}, handleChange, handleLogin }) {
           <input type="checkbox" className="auth-checkbox" /> 
           Remember me
         </label>
-        <a href="#" className="auth-forgot-link">
+        <a href="/forgot" className="auth-forgot-link">
           Forgot password?
         </a>
       </div>

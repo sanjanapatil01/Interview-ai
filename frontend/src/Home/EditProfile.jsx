@@ -3,8 +3,8 @@ import "./Home.css";
 
 const EditProfile = () => {
   const [formData, setFormData] = useState({
-    username: "vtuLogin",
-    email: "user@example.com",
+    username: "",
+    email: "",
     password: "",
     confirmPassword: "",
   });
@@ -88,3 +88,5 @@ const EditProfile = () => {
 };
 
 export default EditProfile;
+
+
