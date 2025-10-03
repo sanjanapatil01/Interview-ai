@@ -7,6 +7,7 @@ import RegistrationPage from "./form/RegistrationPage.jsx";
 import Home from "./Home/Home.jsx";
 import UserForm from "./form/UserForm.jsx";
 import UserInterviewRoom from "./Home/UserInterviewRoom.jsx";
+import ForgotPasswordPage from "./form/ForgotPasswordPage.jsx";
 import "./App.css"
 import "./Home/Home.css"
 function App() {
@@ -19,8 +20,9 @@ function App() {
         <Route path="/otp" element={<OtpPage />} />
         <Route path="/login" element={<LoginPage/>} />
         <Route path="/register" element={<RegistrationPage />} />
-        < Route path="/home" element={<Home/>}/>
-       
+        <Route path="/home" element={<Home />} />
+        <Route path="/forgot" element={<ForgotPasswordPage />} />
+
       </Routes>
     </Router>
   );

@@ -7,7 +7,9 @@ export default function OtpPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Read email and the new flag from state
   const email = location.state?.email || "unknown email";
+  const isPasswordReset = location.state?.isPasswordReset || false; 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,26 +18,34 @@ export default function OtpPage() {
       const response = await fetch("http://localhost:8000/api/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
+        // Send the isPasswordReset flag to the backend
+        body: JSON.stringify({ email, otp, isPasswordReset }), 
       });
 
       if (response.ok) {
         const data = await response.json();
+        
+        alert(data.message); // Display success message
 
-        // If backend sends a JWT after OTP verification, save it
-        if (data.token) {
-          localStorage.setItem("token", data.token);
+        // Logic for successful verification
+        if (isPasswordReset) {
+            // Password reset is complete, force user back to login
+            navigate("/"); 
+        } else {
+            // Regular registration verification
+            if (data.token) {
+              localStorage.setItem("token", data.token);
+            }
+            navigate("/home"); 
         }
-
-        alert("OTP Verified Successfully!");
-        navigate("/home"); // redirect to home/dashboard
+        
       } else {
         const errorData = await response.json();
-        alert("OTP failed: " + (errorData.error || JSON.stringify(errorData)));
+        alert("Verification failed: " + (errorData.error || JSON.stringify(errorData)));
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("Something went wrong!");
+      alert("Something went wrong during verification!");
     }
     setLoading(false);
   };
@@ -68,8 +78,8 @@ export default function OtpPage() {
           {loading ? "Verifying..." : "Verify Code"}
         </button>
         
-        <p className="auth-logo-subtitle mt-4">
-          Didn't receive the code? <a href="#" className="auth-forgot-link">Resend</a>
+        <p className="otp-resend-prompt">
+          Didn't receive the code? <a href="#" className="otp-resend-link">Resend</a>
         </p>
       </form>
     </div>

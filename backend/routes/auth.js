@@ -85,30 +85,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Verify OTP - **MUST BE PUBLIC**
-router.post("/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email });
-
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (user.otp !== otp || user.otpExpires < Date.now()) {
-      return res.status(400).json({ error: "Invalid or expired OTP" });
-    }
-
-    user.otp = null;
-    user.otpExpires = null;
-    await user.save();
-
-    // Issue JWT upon successful OTP verification
-    const token = jwt.sign({ id: user._id, uid: user.uid }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-    res.json({ token, message: "OTP Verified!" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Login - **MUST BE AUTHENTICATED**
 router.post("/login", authenticate, async (req, res) => {
   const firebaseUid = req.firebaseUser.uid; 
@@ -134,6 +110,107 @@ router.post("/login", authenticate, async (req, res) => {
     res.status(500).json({ error: "An internal server error occurred during login." });
   }
 });
+
+
+// ... (existing admin.initializeApp setup and authenticate middleware)
+
+// -------------------------------------------------------------------
+// NEW ROUTE: Forgot Password - Initiates the reset process
+// -------------------------------------------------------------------
+router.post('/forgot-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Return success even if user not found to prevent user enumeration attacks
+      return res.json({ message: "If a matching account was found, an OTP has been sent." });
+    }
+    
+    // 1. Hash the new password and store it temporarily
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // 2. Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // 3. Update user with new OTP and the temporarily hashed password
+    await User.updateOne(
+      { email },
+      { $set: { 
+          otp, 
+          otpExpires,
+          // Use the password field temporarily to store the HASHED new password
+          // This is a common but dangerous pattern.
+          tempPasswordHash: hashedPassword, 
+        } 
+      }
+    );
+    
+    // 4. Send OTP Email
+    await sendOtpEmail(email, otp);
+
+    res.json({ message: 'OTP sent to your email for password reset verification.' });
+  } catch (err) {
+    console.error("Forgot Password Error:", err);
+    res.status(500).json({ error: "Failed to initiate password reset." });
+  }
+});
+
+// -------------------------------------------------------------------
+// MODIFIED ROUTE: Verify OTP - Now handles both Registration and Reset
+// -------------------------------------------------------------------
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { email, otp, isPasswordReset } = req.body; // Expect isPasswordReset flag
+
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.otp !== otp || user.otpExpires < Date.now()) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    // CRITICAL STEP: Handle Password Reset
+    if (isPasswordReset && user.tempPasswordHash) {
+        // 1. Apply the temporary password hash to the main password field
+        user.password = user.tempPasswordHash; 
+        
+        // 2. Clear the temporary hash field
+        user.tempPasswordHash = undefined; 
+        
+        // **IMPORTANT:** You MUST also update the password in Firebase Auth here
+        // This is complex and requires the Firebase Admin SDK to be set up correctly.
+        // For now, this only updates your MongoDB record.
+        
+        await user.save();
+        
+        // Clear OTP fields
+        user.otp = null;
+        user.otpExpires = null;
+        await user.save();
+        
+        // No JWT issued on reset, redirect user to login
+        return res.json({ message: "Password reset successful! Please log in." });
+    } 
+    
+    // Handle Regular Registration Verification
+    
+    // Clear OTP fields
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    // Issue JWT upon successful OTP verification
+    const token = jwt.sign({ id: user._id, uid: user.uid }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.json({ token, message: "OTP Verified! Login token issued." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ... (rest of auth.js: /register, /login)
 
 
 module.exports = router;
