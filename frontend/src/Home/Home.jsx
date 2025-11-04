@@ -15,7 +15,8 @@ const Home = () => {
 
   const [interviewDate, setInterviewDate] = useState("");
   const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+
+  const [username, setUsername] = useState("User");
 
   const [candidates, setCandidates] = useState([
     { id: 1, name: "Alice Johnson", date: "2025-09-01", status: "Completed", score: 85, transcript: "Alice interview...", pdfLink: "#" },
@@ -30,6 +31,40 @@ const Home = () => {
   useEffect(() => {
     // Dummy fetch example (if needed)
   }, []);
+   useEffect(() => {
+    const fetchProfile = async () => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            navigate("/"); // Redirect if no token is found
+            return;
+        }
+
+        try {
+            const response = await fetch("http://localhost:8000/api/profile", {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Assumes the backend returns the user object with a 'username' field.
+                setUsername(data.username || "User"); 
+            } else  {
+                console.error("Failed to fetch profile:", response.status);
+                // Log out user if token is invalid/expired (401)
+                if (response.status === 401) {
+                    localStorage.removeItem("token");
+                    navigate("/"); 
+                }
+            }
+        } catch (error) {
+            console.error("Network error during profile fetch:", error);
+        }
+    };
+    fetchProfile();
+  }, [navigate]);
 
   const handleSelect = (id) => {
     setCandidates(
@@ -180,8 +215,7 @@ const Home = () => {
             setInterviewDate={setInterviewDate}
             startTime={startTime}
             setStartTime={setStartTime}
-            endTime={endTime}
-            setEndTime={setEndTime}
+            
           />
         );
       case "candidate-overview":
@@ -236,8 +270,8 @@ const Home = () => {
           <span className="site-title">Interview.ai</span>
         </div>
         <div className="navbar-right">
-          <span className="user-greeting">Hello, vtuLogin</span>
-          <button
+         <span className="user-greeting">Hello, {username}</span>           
+         <button  
             onClick={() => setActivePage("generate-link")}
             className="generate-link-button"
           >

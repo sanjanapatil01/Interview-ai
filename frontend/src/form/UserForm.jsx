@@ -1,28 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
-// IMPORTANT: FOR LOCAL USE, PASTE YOUR FIREBASE CONFIGURATION HERE.
-// You must replace the placeholder values with your project's credentials.
-/*
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-*/
 
-// Global variables for the canvas environment.
-// eslint-disable-next-line no-undef
-const appId = typeof __app_id !== 'undefined' ? __app_id : "your-app-id-placeholder";
-// eslint-disable-next-line no-undef
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 // New Core Color Palette
 const colors = {
@@ -34,7 +15,8 @@ const colors = {
   backgroundWhite: '#ffffff',
   border: '#e9ecef',
   active: '#27ae60',
-  destructive: '#e74c3c'
+  destructive: '#e74c3c',
+  inactive: '#bdc3c7',
 };
 
 // CSS styles for the form.
@@ -172,6 +154,10 @@ const styles = `
     color: ${colors.destructive};
     font-size: 0.9rem;
     margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: #fbecec;
+    border-radius: 0.5rem;
+    border: 1px solid ${colors.destructive};
   }
 
   .submit-button {
@@ -195,7 +181,7 @@ const styles = `
   }
 
   .submit-button:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
     background: ${colors.inactive};
     box-shadow: none;
@@ -230,9 +216,11 @@ const injectStyles = () => {
 
 
 const UserForm = () => {
+  const { id } = useParams();
     useEffect(() => {
         injectStyles();
-    }, []);
+        console.log("Fetched user ID from URL:", id);
+    }, [id]);
 
     const [form, setForm] = useState({
         username: '',
@@ -241,50 +229,94 @@ const UserForm = () => {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    // Note: useNavigate is assumed to be available from react-router-dom
+    // If you are not using a router, you can remove this and the import.
     const navigate = useNavigate();
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleFileChange = (e) => {
-        setForm({ ...form, resume: e.target.files[0] });
-    };
+    // ...existing code...
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+const allowedTypes = [
+  'application/pdf',
+  'application/msword', // .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+];
+
+const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && allowedTypes.includes(file.type)) {
+        setForm({ ...form, resume: file });
         setError(null);
-        setIsLoading(true);
+    } else if (file) {
+        setForm({ ...form, resume: null });
+        setError('Unsupported file type. Please upload a PDF or Word document.');
+    } else {
+        setForm({ ...form, resume: null });
+    }
+};
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError(null);
 
-        const formData = new FormData();
-        formData.append('username', form.username);
-        formData.append('email', form.email);
-        formData.append('resume', form.resume);
+  if (!form.resume) {
+    setError('Please upload a valid resume file.');
+    return;
+  }
 
-        try {
-            // const response = await fetch('/api/submit-user-form', {
-            //     method: 'POST',
-            //     body: formData,
-            // });
+  setIsLoading(true);
+  const formData = new FormData();
+  formData.append('resume', form.resume);
+  formData.append('name', form.username);
+  formData.append('email', form.email);
 
-            // if (!response.ok) {
-            //     throw new Error('Failed to submit form.');
-            // }
+  try {
+    const response = await fetch('http://127.0.0.1:5000/api/flask/upload_resume', {
+      method: 'POST',
+      body: formData,  // ✅ Correct: send FormData directly
+      // ❌ DO NOT set Content-Type manually — the browser does this automatically
+    });
 
-            // const result = await response.json();
-            // console.log('Form submitted successfully:', result);
-
-            // Temporarily navigate to the interview room on successful mock submission
-            navigate('/interviewroom');
-
-        } catch (err) {
-            console.error('Submission error:', err);
-            setError('An error occurred. Please try again.');
-        } finally {
-            setIsLoading(false);
+    if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
         }
-    };
+      } catch (e) {
+        console.error("Could not parse error JSON:", e);
+      }
+      throw new Error(`Failed to upload resume (Status: ${response.status}): ${errorMessage}`);
+    }
 
+   const result = await response.json();
+console.log('Resume uploaded successfully:', result);
+
+// ✅ Extract user_id from backend response (adjust key name if different)
+const userId = result.user_id || result.id || result.userId;
+
+// ✅ Navigate with userId as state or param
+if (userId) {
+  navigate('/startinterview', { state: { userId } });
+} else {
+  console.warn("No user_id returned from API. Check backend response keys:", result);
+  setError("Something went wrong. User ID not received from server.");
+}
+  } catch (err) {
+    console.error('Submission error:', err);
+    setError(err.message || 'An unexpected error occurred. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+                
+        
+
+// ...existing code...
     return (
         <div className="main-container">
             <header className="header">
@@ -295,7 +327,7 @@ const UserForm = () => {
                 <div className="auth-form-container">
                     <h2 className="form-title">Ready for Your Interview?</h2>
                     <p className="form-description">
-                        Please fill out the form below to get started.
+                        Please fill out the form below and upload your resume to get started.
                     </p>
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
@@ -321,7 +353,7 @@ const UserForm = () => {
                             />
                         </div>
                         <div className="form-group">
-                            <label className="form-label">Upload Your Resume</label>
+                            <label className="form-label">Upload Your Resume (.pdf, .doc, .docx)</label>
                             <input
                                 type="file"
                                 name="resume"
@@ -333,16 +365,16 @@ const UserForm = () => {
                         </div>
                         {/* Display error message if there is one */}
                         {error && (
-                            <p className="error-message">{error}</p>
+                            <p className="error-message">Error: {error}</p>
                         )}
                         {/* Next Button */}
                         <div>
                             <button
                                 type="submit"
                                 className="submit-button"
-                                disabled={isLoading}
+                                disabled={isLoading || !form.username || !form.email || !form.resume}
                             >
-                                {isLoading ? 'Submitting...' : 'Next'}
+                                {isLoading ? 'Submitting...' : 'Submit'}
                             </button>
                         </div>
                     </form>
