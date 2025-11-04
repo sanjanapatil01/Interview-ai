@@ -8,7 +8,14 @@ dotenv.config();
 connectDB();
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+    origin: ['http://localhost:3000','http://localhost:3001'], // Only allow your frontend's origin
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+
+    credentials: true, // If you're using cookies/sessions
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api", authRoutes);

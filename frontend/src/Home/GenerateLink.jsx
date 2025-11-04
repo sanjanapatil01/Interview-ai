@@ -1,13 +1,55 @@
 import React, { useState } from "react";
-import "./Home.css";
+import "./Home.css"; // Assuming this is where your styles are
+import Papa from "papaparse";
+import './generatelink.css'
 
-const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime, endTime, setEndTime }) => {
+const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime }) => {
   const [generatedLink, setGeneratedLink] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState([]);
 
-  const handleGenerate = () => {
-    // In real app: fetch from backend instead of random link
-    const link = `http://localhost:3000/interview/${Date.now()}`;
-    setGeneratedLink(link);
+  const API_URL = "http://localhost:8000/api/generate";
+
+  const handleGenerate = async () => {
+    if (!interviewDate || !startTime) {
+      setError("Please fill in all date and time fields.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setGeneratedLink("");
+
+    const interviewerId = localStorage.getItem('userId');
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          interviewerId,
+          interviewDate,
+          startTime,
+          data,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to generate link on the server.");
+      }
+
+      const responseData = await response.json();
+      const newLink = `http://localhost:3001/interviewcheck/${responseData.sessionId}`;
+      setGeneratedLink(newLink);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCopy = () => {
@@ -15,6 +57,20 @@ const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime
       navigator.clipboard.writeText(generatedLink);
       alert("Link copied to clipboard!");
     }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        setData(results.data);
+        console.log(results.data);
+      },
+    });
   };
 
   return (
@@ -40,32 +96,49 @@ const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime
           />
         </div>
         <div className="form-field">
-          <label className="field-label">End Time</label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="time-input"
-          />
+          <input type="file" accept=".csv" onChange={handleFileChange} />
+          {data.length > 0 && (
+            <div className="data-preview-container">
+              <div className="data-preview-header">
+                <span>Uploaded Data Preview</span>
+                <span className="data-count">{data.length} entries</span>
+              </div>
+              <div className="data-table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {Object.keys(data[0]).map((key) => (
+                        <th key={key}>{key}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map((row, index) => (
+                      <tr key={index}>
+                        {Object.values(row).map((value, i) => (
+                          <td key={i}>{value}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Generate button */}
+      {error && <p className="error-message">{error}</p>}
       <button
         onClick={handleGenerate}
         className="generate-btn"
+        disabled={isLoading}
       >
-        Generate Link
+        {isLoading ? "Generating..." : "Generate Link"}
       </button>
-
-      {/* Show generated link */}
       {generatedLink && (
         <div className="generated-link-container">
-          <span className="generated-link-text">{generatedLink}</span>
-          <button
-            onClick={handleCopy}
-            className="copy-link-btn"
-          >
+          <p className="generated-link-text">{generatedLink}</p>
+          <button onClick={handleCopy} className="copy-link-btn">
             Copy
           </button>
         </div>

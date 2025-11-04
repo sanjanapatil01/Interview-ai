@@ -1,13 +1,55 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { updatePassword } from "firebase/auth";
+import { auth } from "../Firebase"; // Assuming your Firebase config is in "../Firebase"
 import "./Home.css";
 
 const EditProfile = () => {
   const [formData, setFormData] = useState({
     username: "",
     email: "",
-    password: "",
+    newPassword: "", // Changed to newPassword to match handleSave logic
     confirmPassword: "",
+    uid: "", // Store UID for reference
   });
+  const [loading, setLoading] = useState(false);
+  const [initialEmail, setInitialEmail] = useState(""); // Used for security check
+
+  // --- Fetch Current Profile Data on Load ---
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:8000/api/profile", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setFormData({
+            ...formData,
+            username: data.username,
+            email: data.email,
+            uid: data.uid,
+          });
+          setInitialEmail(data.email); // Store initial email for change detection
+        } else {
+          alert("Failed to fetch current profile data.");
+        }
+      } catch (error) {
+        console.error("Fetch profile error:", error);
+        alert("An error occurred while loading profile.");
+      }
+      setLoading(false);
+    };
+
+    fetchProfile();
+  }, []);
+  // ------------------------------------------
 
   const handleChange = (e) => {
     setFormData({
@@ -16,15 +58,61 @@ const EditProfile = () => {
     });
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
+    if (formData.newPassword !== formData.confirmPassword) {
       alert("Passwords do not match!");
       return;
     }
-    console.log("Profile updated:", formData);
-    alert("Profile updated successfully!");
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      const payload = {
+        username: formData.username,
+        email: formData.email,
+        // Only send the newPassword if the user entered one
+        newPassword: formData.newPassword || undefined,
+      };
+
+      // 1. Send Update Request to Backend (MongoDB & Firebase Password Update)
+      const response = await fetch("http://localhost:8000/api/profile", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        // Clear password fields on success
+        setFormData((prev) => ({
+          ...prev,
+          newPassword: "",
+          confirmPassword: "",
+        }));
+        
+        // If username was updated, refresh the Home page state (handled by useEffect there)
+        alert("Profile updated successfully!");
+        // Optional: Force a page refresh to update the username on the Home page instantly
+        window.location.reload(); 
+      } else {
+        const errorData = await response.json();
+        alert("Update failed: " + (errorData.error || "Server error."));
+      }
+    } catch (error) {
+      console.error("Profile update error:", error);
+      alert("An unexpected error occurred during update.");
+    }
+
+    setLoading(false);
   };
+
+  if (loading && !formData.uid) {
+    return <div className="profile-page-container">Loading Profile...</div>;
+  }
 
   return (
     <div className="profile-page-container">
@@ -42,6 +130,7 @@ const EditProfile = () => {
             onChange={handleChange}
             placeholder="Username"
             className="profile-input"
+            required
           />
 
           {/* Email */}
@@ -52,15 +141,16 @@ const EditProfile = () => {
             onChange={handleChange}
             placeholder="Email"
             className="profile-input"
+            required
           />
 
-          {/* Password */}
+          {/* Password - Changed name to newPassword */}
           <input
             type="password"
-            name="password"
-            value={formData.password}
+            name="newPassword" 
+            value={formData.newPassword}
             onChange={handleChange}
-            placeholder="New Password"
+            placeholder="New Password (leave blank to keep current)"
             className="profile-input"
           />
 
@@ -78,8 +168,9 @@ const EditProfile = () => {
           <button
             type="submit"
             className="profile-save-btn"
+            disabled={loading}
           >
-            Save Changes
+            {loading ? "Saving..." : "Save Changes"}
           </button>
         </form>
       </div>
@@ -88,5 +179,3 @@ const EditProfile = () => {
 };
 
 export default EditProfile;
-
-

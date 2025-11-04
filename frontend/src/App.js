@@ -8,6 +8,7 @@ import Home from "./Home/Home.jsx";
 import UserForm from "./form/UserForm.jsx";
 import UserInterviewRoom from "./Home/UserInterviewRoom.jsx";
 import ForgotPasswordPage from "./form/ForgotPasswordPage.jsx";
+import StartInterview from "./Home/StartInterview.jsx";
 import "./App.css"
 import "./Home/Home.css"
 function App() {
@@ -15,13 +16,14 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<FirstPage />} />
-        <Route path="/user" element={<UserForm />} />
+        <Route path="/user/:id" element={<UserForm />} />
         <Route path="/interviewroom" element={<UserInterviewRoom />} />
         <Route path="/otp" element={<OtpPage />} />
         <Route path="/login" element={<LoginPage/>} />
         <Route path="/register" element={<RegistrationPage />} />
         <Route path="/home" element={<Home />} />
         <Route path="/forgot" element={<ForgotPasswordPage />} />
+        <Route path="/startinterview" element={<StartInterview />} />
 
       </Routes>
     </Router>
