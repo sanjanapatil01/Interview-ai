@@ -9,7 +9,7 @@ const UserInterviewRoom = () => {
 
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [timer, setTimer] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("Preparing your interview...");
+  const [statusMessage, setStatusMessage] = useState('Preparing your interview...');
   const [aiQuestion, setAiQuestion] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
   const [sessionId, setSessionId] = useState(null);
@@ -20,38 +20,49 @@ const UserInterviewRoom = () => {
   const [interviewEnded, setInterviewEnded] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
+  // timers & refs
+  const [thinkTimeLeft, setThinkTimeLeft] = useState(0);
+  const [answerTimeLeft, setAnswerTimeLeft] = useState(0);
+  const thinkIntervalRef = useRef(null);
+  const answerIntervalRef = useRef(null);
+
   const userVideoRef = useRef(null);
   const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef(''); // accumulates across restarts
+  const answerTimeLeftRef = useRef(0); // avoid stale closures
+  const restartAttemptsRef = useRef(0);
+  const MAX_RESTARTS = 6;
 
-  // Extract from navigation
+  // extract navigation state
   useEffect(() => {
     if (location?.state) {
-      const { sessionId, userId, firstQuestion } = location.state;
-      setSessionId(sessionId);
-      setUserId(userId);
+      const { sessionId: sId, userId: uId, firstQuestion } = location.state;
+      setSessionId(sId || null);
+      setUserId(uId || null);
       if (firstQuestion) setAiQuestion(firstQuestion);
     }
   }, [location]);
 
-  // Enable camera
+  // camera + mic init
   useEffect(() => {
     const initCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (userVideoRef.current) userVideoRef.current.srcObject = stream;
-        setStatusMessage("Camera & Mic ON. Starting interview...");
+        setStatusMessage('Camera & Mic ON. Starting interview...');
         startInterview();
       } catch (err) {
-        console.error("Camera/Mic error:", err);
-        setStatusMessage("Please allow camera & mic access to continue.");
-        if (err.name === "NotAllowedError") setMicError(true);
-        if (err.name === "NotFoundError") setCameraError(true);
+        console.error('Camera/Mic error:', err);
+        setStatusMessage('Please allow camera & mic access to continue.');
+        if (err.name === 'NotAllowedError') setMicError(true);
+        if (err.name === 'NotFoundError') setCameraError(true);
       }
     };
     initCamera();
+    // cleanup handled in unmount effect below
   }, []);
 
-  // Timer
+  // global interview timer
   useEffect(() => {
     let interval;
     if (isInterviewStarted) {
@@ -66,123 +77,146 @@ const UserInterviewRoom = () => {
     return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  // Start Interview
   const startInterview = () => {
     setIsInterviewStarted(true);
     setTimer(0);
-    setStatusMessage("Interview started! Speak your answers clearly.");
+    setStatusMessage('Interview started! Speak your answers clearly.');
   };
 
-  // const speakThenListen = (text) => {
-  // const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  // if (!SpeechRecognition || !window.speechSynthesis) {
-  //   setStatusMessage("Speech APIs not supported in this browser.");
-  //   return;
-  // }
+  // when aiQuestion updates, speak question immediately then listen for answer (3 min default)
+  useEffect(() => {
+    if (aiQuestion && isInterviewStarted) {
+      // reset transcript buffer for new question
+      finalTranscriptRef.current = '';
+      speakThenListen(aiQuestion, 120);
+    }
+    return () => {
+      clearThinkInterval();
+      clearAnswerInterval();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiQuestion, isInterviewStarted]);
 
-  // const synth = window.speechSynthesis;
-  // const utterance = new SpeechSynthesisUtterance(text);
-  // utterance.lang = 'en-US';
-  // utterance.rate = 1;
+  const clearThinkInterval = () => {
+    if (thinkIntervalRef.current) {
+      clearInterval(thinkIntervalRef.current);
+      thinkIntervalRef.current = null;
+    }
+  };
+  const clearAnswerInterval = () => {
+    if (answerIntervalRef.current) {
+      clearInterval(answerIntervalRef.current);
+      answerIntervalRef.current = null;
+    }
+  };
 
-  // let finalTranscript = '';
-  // let recognition;
-  // let recognitionTimeout;
+  const speakThenListen = (text, answerSeconds = 120) => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || !window.speechSynthesis) {
+      setStatusMessage('Speech APIs not supported in this browser.');
+      return;
+    }
 
-  // const startRecognition = () => {
-  //   recognition = new SpeechRecognition();
-  //   recognitionRef.current = recognition;
-  //   recognition.lang = 'en-US';
-  //   recognition.interimResults = true;
-  //   recognition.continuous = false;
-  //   recognition.maxAlternatives = 3;
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 1;
 
-  //   recognition.onstart = () => {
-  //     setIsListening(true);
-  //     setStatusMessage("🎙️ Listening... Speak now.");
-  //     recognitionTimeout = setTimeout(() => {
-  //       recognition.stop(); // Stop after 200s
-  //     }, 200000);
-  //   };
+    // stop any current recognition before speaking
+    try {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.stop();
+        } catch (e) { /* ignore */ }
+        recognitionRef.current = null;
+      }
+    } catch (e) { /* ignore */ }
 
-  //   recognition.onresult = (event) => {
-  //     let interim = '';
-  //     for (let i = event.resultIndex; i < event.results.length; i++) {
-  //       const transcript = event.results[i][0].transcript;
-  //       if (event.results[i].isFinal) {
-  //         finalTranscript += transcript + ' ';
-  //       } else {
-  //         interim += transcript;
-  //       }
-  //     }
-  //     setUserAnswer(finalTranscript + interim);
-  //   };
+    synth.cancel();
+    setStatusMessage('🔊 Speaking question...');
+    // ensure voices loaded for some browsers
+    const speakNow = () => {
+      try {
+        synth.speak(utterance);
+      } catch (e) {
+        console.error('speak failed:', e);
+      }
+    };
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = speakNow;
+      speakNow();
+    } else {
+      speakNow();
+    }
 
-  //   recognition.onerror = (event) => {
-  //     console.error("Recognition error:", event.error);
-  //     setStatusMessage("Speech recognition error.");
-  //     setIsListening(false);
-  //     clearTimeout(recognitionTimeout);
-  //   };
+    utterance.onend = () => {
+      // start recognition for answer
+      startRecognitionForAnswer(answerSeconds);
+    };
 
-  //   recognition.onend = () => {
-  //     setIsListening(false);
-  //     clearTimeout(recognitionTimeout);
-  //     const cleaned = finalTranscript.trim();
-  //     if (cleaned) {
-  //       setUserAnswer(cleaned);
-  //       setStatusMessage("✅ Answer received.");
-  //       submitAnswer(cleaned);
-  //     } else {
-  //       setStatusMessage("No speech detected. Please try again.");
-  //     }
-  //   };
+    utterance.onerror = () => {
+      // even if TTS errors, attempt recognition
+      startRecognitionForAnswer(answerSeconds);
+    };
+  };
 
-  //   recognition.start();
-  // };
+  // start recognition with managed restart logic
+  const startRecognitionForAnswer = (answerSeconds = 120) => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setStatusMessage('Speech recognition not supported.');
+      return;
+    }
 
-  // synth.cancel();
-  // synth.speak(utterance);
-  // setStatusMessage("🔊 Speaking question...");
+    // stop previous recognition and prevent auto restart
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current._autoRestart = false;
+        try { recognitionRef.current.onend = null; recognitionRef.current.onerror = null; recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+        recognitionRef.current = null;
+      }
+    } catch (e) { /* ignore */ }
 
-  // utterance.onend = () => {
-  //   startRecognition();
-  // };
-
-
-const finalTranscriptRef = useRef('');
-
-const speakThenListen = (text) => {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition || !window.speechSynthesis) {
-    setStatusMessage("Speech APIs not supported in this browser.");
-    return;
-  }
-
-  const synth = window.speechSynthesis;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-US';
-  utterance.rate = 1;
-
-  let recognition;
-  let recognitionTimeout;
-
-  const startRecognition = () => {
-    recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
+    recognition._autoRestart = true;
+    recognition._isAborted = false;
+
     recognition.lang = 'en-US';
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = false; // short sessions, restart manually
     recognition.maxAlternatives = 3;
 
-    finalTranscriptRef.current = ''; // Reset for each question
+    // maintain accumulated transcript across sessions; do not clear finalTranscriptRef here
 
     recognition.onstart = () => {
+      console.log('🎤 Recognition started');
       setIsListening(true);
-      setStatusMessage("🎙️ Listening... Speak now.");
-      recognitionTimeout = setTimeout(() => {
-        recognition.stop(); // Stop after 2 minutes
-      }, 60000);
+      setStatusMessage('🎙️ Listening... Speak now.');
+
+      // initialize timer + ref only if fresh session; answerSeconds parameter is remaining time
+      setAnswerTimeLeft(answerSeconds);
+      answerTimeLeftRef.current = answerSeconds;
+
+      // countdown
+      clearAnswerInterval();
+      answerIntervalRef.current = setInterval(() => {
+        const newVal = Math.max(0, answerTimeLeftRef.current - 1);
+        answerTimeLeftRef.current = newVal;
+        setAnswerTimeLeft(newVal);
+
+        if (answerTimeLeftRef.current <= 0) {
+          clearAnswerInterval();
+          try {
+            if (recognitionRef.current) {
+              recognitionRef.current._autoRestart = false;
+              recognitionRef.current.stop();
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }, 1000);
     };
 
     recognition.onresult = (event) => {
@@ -191,119 +225,171 @@ const speakThenListen = (text) => {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscriptRef.current += transcript + ' ';
+          // reset restart attempts because we got valid speech
+          restartAttemptsRef.current = 0;
         } else {
           interim += transcript;
         }
       }
-
       setUserAnswer(finalTranscriptRef.current + interim);
     };
 
     recognition.onerror = (event) => {
-      console.error("Recognition error:", event.error);
-      setStatusMessage("Speech recognition error.");
+      console.warn('Recognition error:', event.error);
+      // handle abort specially
+      if (event.error === 'aborted') {
+        recognition._isAborted = true;
+        recognition._autoRestart = false;
+        setStatusMessage('Recognition aborted. Please retry or press "Retry Listening".');
+        setIsListening(false);
+        return;
+      }
+      // other errors: keep timer running and allow restart attempts
+      setStatusMessage(`Recognition error: ${event.error}`);
       setIsListening(false);
-      clearTimeout(recognitionTimeout);
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      clearTimeout(recognitionTimeout);
+      console.log('🛑 Recognition ended; autoRestart=', recognition._autoRestart, 'isAborted=', recognition._isAborted, 'answerTimeLeftRef=', answerTimeLeftRef.current);
 
-      const cleaned = finalTranscriptRef.current.trim();
-      if (cleaned) {
-        setUserAnswer(cleaned);
-        setStatusMessage("✅ Answer received.");
-        submitAnswer(cleaned);
-      } else {
-        setStatusMessage("No speech detected. Please try again.");
+      if (recognition._isAborted) {
+        console.log('Recognition was aborted, not restarting.');
+        return;
       }
 
-      finalTranscriptRef.current = ''; // Reset for next question
+      // if still time left and allowed to auto-restart, attempt restart with backoff and max attempts
+      if (recognition._autoRestart && answerTimeLeftRef.current > 0) {
+        restartAttemptsRef.current = (restartAttemptsRef.current || 0) + 1;
+        if (restartAttemptsRef.current <= MAX_RESTARTS) {
+          setTimeout(() => {
+            try {
+              startRecognitionForAnswer(answerTimeLeftRef.current);
+            } catch (err) {
+              console.error('Recognition restart failed:', err);
+            }
+          }, 700 + restartAttemptsRef.current * 200); // increasing backoff
+        } else {
+          setStatusMessage('Speech recognition unstable. Use "Retry Listening" or press "Submit Answer" when ready.');
+          console.warn('Max recognition restart attempts reached');
+        }
+        return;
+      }
+
+      // finalization: only auto-submit if time expired
+      const cleaned = finalTranscriptRef.current.trim();
+      if (answerTimeLeftRef.current === 0) {
+        if (cleaned) {
+          setUserAnswer(cleaned);
+          setStatusMessage('✅ Answer received (time up).');
+          submitAnswer(cleaned);
+          console.log('Submitting answer (time up):', cleaned);
+        } else {
+          setStatusMessage('Time finished. No answer captured.');
+          submitAnswer('');
+        }
+      } else {
+        // do not auto-submit; keep buffer for future sessions
+        setStatusMessage('No final speech detected yet — still listening until time runs out.');
+      }
+      finalTranscriptRef.current = cleaned ? cleaned + ' ' : '';
     };
 
-    // Delay start to ensure mic is ready
+    // small delay to stabilize mic
     setTimeout(() => {
       try {
         recognition.start();
       } catch (err) {
-        console.error("Recognition start failed:", err);
+        console.error('Recognition start failed:', err);
+        setStatusMessage('Recognition start failed. Please retry.');
       }
-    }, 500);
+    }, 300);
   };
 
-  // Speak question
-  synth.cancel();
-  synth.speak(utterance);
-  setStatusMessage("🔊 Speaking question...");
-
-  utterance.onend = () => {
-    startRecognition();
-  };
-};
-
-  // Trigger TTS + STT when question changes
-  useEffect(() => {
-    if (aiQuestion && isInterviewStarted) {
-      speakThenListen(aiQuestion);
+  // user actions
+  const retryListening = () => {
+    // allow user to retry manually preserving remaining time
+    if (recognitionRef.current) {
+      try { recognitionRef.current._autoRestart = false; recognitionRef.current.onend = null; recognitionRef.current.onerror = null; recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      recognitionRef.current = null;
     }
-  }, [aiQuestion, isInterviewStarted]);
+    setStatusMessage('Retrying listening...');
+    startRecognitionForAnswer(answerTimeLeftRef.current || 180);
+  };
 
-  // Submit Answer
-  // const submitAnswer = async (answer) => {
-  //   try {
-  //     const res = await fetch("http://127.0.0.1:5000/api/flask/submit_answer", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ session_id: sessionId, answer }),
-  //     });
+  const submitNow = () => {
+    // manual submit: stop recognition and submit current transcript
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current._autoRestart = false;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.stop();
+      }
+    } catch (e) { /* ignore */ }
+    const cleaned = (finalTranscriptRef.current || '').trim();
+    if (cleaned) {
+      setUserAnswer(cleaned);
+      setStatusMessage('Submitting answer...');
+      submitAnswer(cleaned);
+    } else {
+      setStatusMessage('No answer to submit.');
+    }
+  };
 
-  //     const data = await res.json();
-  //     if (data.final_report) {
-  //       setInterviewEnded(true);
-  //       setIsInterviewStarted(false);
-  //       setShowCompleteModal(true);
-  //       speakThenListen("Interview finished! Thank you.");
-  //     } else if (data.next_question) {
-  //       setAiQuestion(data.next_question);
-  //       setUserAnswer('');
-  //     } else {
-  //       setAiQuestion("Waiting for next question...");
-  //     }
-  //   } catch (err) {
-  //     console.error("Submit error:", err);
-  //     setStatusMessage("Error submitting your answer. Check connection.");
-  //   }
-  // };
-  const mockQuestions = [
-  "Tell me about yourself.",
-  "Why do you want this role?",
-  "Describe a challenge you overcame.",
-  "How do you handle feedback?",
-  "Where do you see yourself in 5 years?"
-];
+  const startAnswerNow = () => {
+    clearThinkInterval();
+    setThinkTimeLeft(0);
+    setStatusMessage('Skipping thinking. Speaking question now...');
+    speakThenListen(aiQuestion, 120);
+  };
 
-const questionIndexRef = useRef(0); // 👈 Persistent across renders
+  // submit to backend
+  const submitAnswer = async (answer) => {
+    try {
+      const payload = { session_id: sessionId, answer, user_id: userId };
+      const res = await fetch(`http://127.0.0.1:5000/api/flask/submit_answer/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-const submitAnswer = async (answer) => {
-  console.log("📝 Mock submit:", answer);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`Server returned ${res.status}: ${errText}`);
+      }
 
-  setStatusMessage("⏳ Processing your answer...");
-  await new Promise((res) => setTimeout(res, 1000));
+      const data = await res.json();
+      if (data.final_report) {
+        setInterviewEnded(true);
+        setIsInterviewStarted(false);
+        setShowCompleteModal(true);
+        console.log('Final Report:', data.final_report);
+        console.log(data.final_report.candidate_overview.summary);
+        speakThenListen('Interview finished! Thank you.');
+      } else if (data.next_question) {
+        setAiQuestion(data.next_question);
+        setUserAnswer('');
+        finalTranscriptRef.current = ''; // reset for new question
+        restartAttemptsRef.current = 0;
+      } else {
+        setAiQuestion('Waiting for next question...');
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      setStatusMessage(`Error submitting your answer: ${err.message}`);
+    }
+  };
 
-  questionIndexRef.current += 1;
-
-  if (questionIndexRef.current >= mockQuestions.length) {
-    setInterviewEnded(true);
-    setIsInterviewStarted(false);
-    setShowCompleteModal(true);
-    speakThenListen("Interview finished! Thank you.");
-  } else {
-    setAiQuestion(mockQuestions[questionIndexRef.current]);
-    setUserAnswer('');
-    setStatusMessage("Next question coming up...");
-  }
-};
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearThinkInterval();
+      clearAnswerInterval();
+      try { if (recognitionRef.current) recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, []);
 
   return (
     <div className="interview-container">
@@ -315,23 +401,33 @@ const submitAnswer = async (answer) => {
           </div>
           <div className="interview-badges">
             <div className="interview-badge"><Clock /> {formatTime(timer)}</div>
-            <div className={`interview-badge ${isInterviewStarted ? 'active' : ''}`}>
-              {isInterviewStarted ? "Interview Active" : "Ready"}
-            </div>
-            <div className={`interview-badge ${isListening ? 'active' : ''}`}>
-              {isListening ? "🎤 Listening..." : "🔇 Idle"}
-            </div>
+            <div className={`interview-badge ${isInterviewStarted ? 'active' : ''}`}>{isInterviewStarted ? 'Interview Active' : 'Ready'}</div>
+            <div className={`interview-badge ${isListening ? 'active' : ''}`}>{isListening ? '🎤 Listening...' : '🔇 Idle'}</div>
           </div>
         </div>
 
         <div className="interview-card">
-          <div className="interview-card-header">
-            <h2 className="interview-card-title">Status</h2>
-          </div>
+          <div className="interview-card-header"><h2 className="interview-card-title">Status</h2></div>
           <div className="interview-card-content">
             <p className="status-text">{statusMessage}</p>
             {micError && <p style={{ color: 'red' }}>Microphone access denied.</p>}
             {cameraError && <p style={{ color: 'red' }}>Camera access denied.</p>}
+
+            {thinkTimeLeft > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <strong>Thinking time:</strong> {thinkTimeLeft}s
+                <button onClick={startAnswerNow} style={{ marginLeft: 10 }}>Start Answer Now</button>
+              </div>
+            )}
+
+            <div style={{ marginTop: 8 }}>
+              <strong>Answer time left:</strong> {answerTimeLeft}s
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+              <button onClick={retryListening} style={{ marginRight: 8 }}>Retry Listening</button>
+              <button onClick={submitNow}>Submit Answer</button>
+            </div>
           </div>
         </div>
 
@@ -357,6 +453,7 @@ const submitAnswer = async (answer) => {
           </div>
         </div>
       </div>
+
       {showCompleteModal && <InterviewCompleteModal />}
     </div>
   );
