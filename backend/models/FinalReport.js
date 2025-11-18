@@ -11,11 +11,7 @@ const FinalReportSchema = new mongoose.Schema({
     ref: "User",
     required: true
   },
-  userId: {
-    type: String,
-    ref: "Candidate",
-    required: true
-  },
+  
 
   candidate_overview: {
     name: { type: String },

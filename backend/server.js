@@ -9,7 +9,7 @@ connectDB();
 
 const app = express();
 const corsOptions = {
-    origin: ['http://localhost:3000','http://localhost:3001'], // Only allow your frontend's origin
+    origin: ['http://localhost:3000','http://localhost:3001','https://rwdtwzmr-3001.inc1.devtunnels.ms','https://rwdtwzmr-3001.inc1.devtunnels.ms/'], // Only allow your frontend's origin
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
 
     credentials: true, // If you're using cookies/sessions

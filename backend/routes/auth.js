@@ -337,22 +337,37 @@ router.get("/check_session/:sessionId/:email", async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
+router.get("/check_session/:sessionId", async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ message: "Invalid sessionId" });
+    }
+    const session = await InterviewSchedule.findById(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    return res.json({ interviewerId: session.interviewerId , startTime: session.startTime, scheduledDate: session.scheduledDate});
+  } catch (error) {
+    console.error("Check session error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.post("/create-report", async (req, res) => {
   try {
-    const { sessionId, interviewerId, userId, name, email, resumeUrl } = req.body;
+    const { sessionId, interviewerId, name, email } = req.body;
 
-    if (!sessionId || !interviewerId  || !email) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
+    // if (!sessionId || !interviewerId  || !email) {
+    //   return res.status(400).json({ success: false, message: "Missing required fields" });
+    // }
 
     const report = new FinalReport({
       sessionId,
       interviewerId,
-      userId,
+      
       candidate_overview: {
         name,
         email,
-        resumeUrl
+        
       }
     });
 

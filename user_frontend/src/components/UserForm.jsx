@@ -518,6 +518,18 @@ const UserForm = () => {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+useEffect(() => {
+    console.log("Fetched session ID from URL:", sessionId);
+    const interviewerid=fetch(`http://localhost:8000/api/check_session/${sessionId}`)
+    .then(response => response.json())
+    .then(data => {
+        setInterviewerId(data.interviewerId);
+        console.log("Fetched interviewer ID:", data.interviewerId);
+    })
+    .catch(error => {
+        console.error("Error fetching interviewer ID:", error);
+    });
+}, [sessionId]);
 
   const allowedTypes = [
     'application/pdf',
@@ -537,34 +549,105 @@ const UserForm = () => {
       setForm({ ...form, resume: file });
     }
   };
-  const createReport = async (sessionId, userId, resumeUrl, email, username) => {
+//   const createReport = async (sessionId, userId, resumeUrl, email, username) => {
+//   try {
+//     const response = await fetch("http://localhost:8000/api/create-report", {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         sessionId,
+//         interviewerId: interviewerId, // ✅ replace with actual interviewer ID if available
+//         userId,
+//         email,
+//         name: username,
+//         resumeUrl
+//       }),
+//     });
+
+//     const data = await response.json();
+//     if (!data.success) throw new Error("Report creation failed");
+//     localStorage.setItem("reportId", data.reportId);
+//     console.log("✅ Report created with ID:", data.reportId);
+//     return true;
+//   } catch (err) {
+//     console.error("❌ Report creation failed:", err);
+//     return false;
+//   }
+// };
+
+
+//   const uploadResume = async () => {
+//     const formData = new FormData();
+//     formData.append('resume', form.resume);
+//     formData.append('name', form.username);
+//     formData.append('email', form.email);
+
+//     const response = await fetch('http://127.0.0.1:5000/api/flask/upload_resume', {
+//       method: 'POST',
+//       body: formData,
+//     });
+
+//     const result = await response.json();
+
+//     if (!response.ok) throw new Error(result.message || 'Upload failed');
+
+//     const userId = result.user_id || result.id || result.userId;
+//     console.log('Resume uploaded, userId:', userId);
+//     const resumeUrl = result.resumeUrl;
+//     console.log('Resume URL:', resumeUrl);
+
+//   // ✅ Now call createReport BEFORE navigate
+//   const reportStatus = await createReport(
+//     sessionId,
+//     userId,
+//     resumeUrl,
+//     form.email,
+//     form.username
+//   );
+
+//   if (!reportStatus) {
+//     setError("Report creation failed. Try again!");
+  
+//     return;
+//   }
+
+  
+
+//     navigate('/startinterview', { state: { userId } });
+//   };
+// ...existing code...
+const createReport = async (sessionId, userId, email, username) => {
   try {
     const response = await fetch("http://localhost:8000/api/create-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId,
-        interviewerId: interviewerId, // ✅ replace with actual interviewer ID if available
-        userId,
+        interviewerId: interviewerId, // ✅ use state variable
+        userId, // ✅ ADD THIS — was missing
         email,
         name: username,
-        resumeUrl
       }),
     });
 
+    if (!response.ok) {
+      const body = await response.text().catch(() => response.statusText);
+      throw new Error(body || `Create report failed (${response.status})`);
+    }
+
     const data = await response.json();
-    if (!data.success) throw new Error("Report creation failed");
     localStorage.setItem("reportId", data.reportId);
     console.log("✅ Report created with ID:", data.reportId);
-    return true;
+    return { success: true, data };
   } catch (err) {
     console.error("❌ Report creation failed:", err);
-    return false;
+    return { success: false, error: err.message || String(err) };
   }
 };
 
-
-  const uploadResume = async () => {
+const uploadResume = async () => {
+  setIsLoading(true);
+  try {
     const formData = new FormData();
     formData.append('resume', form.resume);
     formData.append('name', form.username);
@@ -575,62 +658,80 @@ const UserForm = () => {
       body: formData,
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
-    if (!response.ok) throw new Error(result.message || 'Upload failed');
-
-    const userId = result.user_id || result.id || result.userId;
-    console.log('Resume uploaded, userId:', userId);
-    const resumeUrl = result.resumeUrl;
-    console.log('Resume URL:', resumeUrl);
-
-  // ✅ Now call createReport BEFORE navigate
-  const reportStatus = await createReport(
-    sessionId,
-    userId,
-    resumeUrl,
-    form.email,
-    form.username
-  );
-
-  if (!reportStatus) {
-    setError("Report creation failed. Try again!");
-  
-    return;
-  }
-
-  
-
-    navigate('/startinterview', { state: { userId } });
-  };
-
-  const checkEmailExists = async (e) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!form.resume) return setError("Upload your resume!");
-    if (!form.email.trim()) return setError("Enter your email!");
-
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(`http://localhost:8000/api/check_session/${sessionId}/${form.email}`);
-      const data = await res.json();
-
-      if (!data.emailExists) return setError("Email not found. Register first.");
-      setInterviewerId(data.interviewerId || null);
-      setTime(data.startTime || null);
-      setDate(data.scheduledDate|| null)
-
-      await uploadResume();
-
-    } catch (err) {
-      setError(err.message || 'Server error');
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(result.message || `Upload failed (${response.status})`);
     }
-  };
 
+    const userIdFromUpload = result.user_id || result.id || result.userId;
+    console.log('Resume uploaded, userId:', userIdFromUpload);
+
+    // ✅ NOW call createReport with userId
+    const reportResult = await createReport(sessionId, userIdFromUpload, form.email, form.username);
+    if (reportResult.success) {
+      navigate('/startinterview', { state: { userId: userIdFromUpload } });
+      return;
+    }
+
+    // If createReport failed, attempt recovery
+    try {
+      const checkRes = await fetch(`http://localhost:8000/api/check_session/${sessionId}/${form.email}`);
+      const checkData = await checkRes.json();
+      if (checkRes.ok && checkData && (checkData.userId || checkData.user_id)) {
+        const existingUserId = checkData.userId || checkData.user_id || userIdFromUpload;
+        console.log('Using existing user id:', existingUserId);
+
+        const retryReport = await createReport(sessionId, existingUserId, form.email, form.username);
+        if (retryReport.success) {
+          navigate('/startinterview', { state: { userId: existingUserId } });
+          return;
+        } else {
+          throw new Error(`Report retry failed: ${retryReport.error}`);
+        }
+      } else {
+        throw new Error(`Report creation failed: ${reportResult.error}`);
+      }
+    } catch (retryErr) {
+      console.error('Report creation recovery failed:', retryErr);
+      throw retryErr;
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const checkEmailExists = async (e) => {
+  e.preventDefault();
+  setError(null);
+
+  if (!form.resume) return setError("Upload your resume!");
+  if (!form.email.trim()) return setError("Enter your email!");
+
+  setIsLoading(true);
+
+  try {
+    const res = await fetch(`http://localhost:8000/api/check_session/${sessionId}/${form.email}`);
+    const data = await res.json();
+
+    if (!data.emailExists) return setError("Email not found. Register first.");
+    
+    // ✅ SET interviewerId BEFORE uploadResume
+    setTime(data.startTime || null);
+    setDate(data.scheduledDate || null);
+
+    if (data.interviewerId !== null) {
+      // ✅ Now uploadResume will use the interviewerId from state
+      await uploadResume();
+    } else {
+      setError("Interviewer ID not found for this session.");
+    }
+  } catch (err) {
+    setError(err.message || 'Server error');
+  } finally {
+    setIsLoading(false);
+  }
+};
   return (
     <div className="main-container">
       <header className="header">
