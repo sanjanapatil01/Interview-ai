@@ -7,7 +7,6 @@ export default function OtpPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Read email and the new flag from state
   const email = location.state?.email || "unknown email";
   const isPasswordReset = location.state?.isPasswordReset || false; 
 
@@ -25,14 +24,11 @@ export default function OtpPage() {
       if (response.ok) {
         const data = await response.json();
         
-        alert(data.message); // Display success message
+        alert(data.message); 
 
-        // Logic for successful verification
         if (isPasswordReset) {
-            // Password reset is complete, force user back to login
             navigate("/"); 
         } else {
-            // Regular registration verification
             if (data.token) {
               localStorage.setItem("token", data.token);
             }

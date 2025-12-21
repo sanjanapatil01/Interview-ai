@@ -8,7 +8,6 @@ export default function LoginPage({ form={}, handleChange, handleLogin }) {
       <input
         type="text"
         name="username"
-        // **CORRECTION: Update placeholder for clarity**
         placeholder="Email Address" 
         value={form.username}
         onChange={handleChange}

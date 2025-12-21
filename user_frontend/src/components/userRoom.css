@@ -1,14 +1,13 @@
-/* Core Color Palette from Home.css */
 :root {
-  --primary-color: #3498db; /* A vibrant blue */
-  --secondary-color: #2980b9; /* A darker shade of blue */
+  --primary-color: #3498db; 
+  --secondary-color: #2980b9; 
   --text-color: #2c3e50;
   --secondary-text-color: #7f8c8d;
   --background-light: #f8f9fa;
   --background-white: #ffffff;
   --border-color: #e9ecef;
-  --active-color: #27ae60; /* A green for active/success states */
-  --inactive-color: #bdc3c7; /* A neutral grey */
+  --active-color: #27ae60; 
+  --inactive-color: #bdc3c7; 
 }
 
 #root{
