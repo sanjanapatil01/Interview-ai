@@ -512,6 +512,7 @@ const UserForm = () => {
   const [interviewerId, setInterviewerId] = useState(null);
   const [time, setTime] = useState(null);
   const [date, setDate] = useState(null);
+  const [reportId, setReportId] = useState(null);
 
   useEffect(() => { injectStyles(); }, []);
 
@@ -636,7 +637,7 @@ const createReport = async (sessionId, userId, email, username) => {
     }
 
     const data = await response.json();
-    localStorage.setItem("reportId", data.reportId);
+    setReportId(data.reportId);
     console.log("✅ Report created with ID:", data.reportId);
     return { success: true, data };
   } catch (err) {
@@ -670,9 +671,10 @@ const uploadResume = async () => {
     // ✅ NOW call createReport with userId
     const reportResult = await createReport(sessionId, userIdFromUpload, form.email, form.username);
     if (reportResult.success) {
-      navigate('/startinterview', { state: { userId: userIdFromUpload } });
+      navigate('/startinterview', { state: { userId: userIdFromUpload,reportId:reportResult.data.reportId } });
       return;
     }
+    console.log('reportResult',reportResult.data.reportId);
 
     // If createReport failed, attempt recovery
     try {
@@ -684,7 +686,7 @@ const uploadResume = async () => {
 
         const retryReport = await createReport(sessionId, existingUserId, form.email, form.username);
         if (retryReport.success) {
-          navigate('/startinterview', { state: { userId: existingUserId } });
+          navigate('/startinterview', { state: { userId: existingUserId,reportId:reportId } });
           return;
         } else {
           throw new Error(`Report retry failed: ${retryReport.error}`);

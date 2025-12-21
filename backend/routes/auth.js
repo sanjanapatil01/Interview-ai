@@ -27,12 +27,15 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 // 2. EMAIL UTILITY: Send OTP
 // -------------------------------------------------------------------
 
+// In your auth.js file, update the email transporter configuration
+
 const sendOtpEmail = async (email, otp) => {
-  // CRITICAL: Ensure process.env.EMAIL_USER and process.env.EMAIL_PASS are set correctly 
-  // (e.g., in a .env file loaded by dotenv, and for Gmail, use an App Password).
   let transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    auth: { 
+      user: process.env.EMAIL_USER, 
+      pass: process.env.EMAIL_PASS 
+    }
   });
 
   const emailSubject = "Interview.ai: Your One-Time Verification Code (OTP)";
@@ -64,9 +67,6 @@ The Interview.ai Security Team
     text: emailBody, 
   });
 };
-
-
-
 
 // -------------------------------------------------------------------
 // 3. AUTHENTICATE MIDDLEWARE (VERIFIES CUSTOM JWT)
@@ -382,6 +382,144 @@ router.post("/create-report", async (req, res) => {
   } catch (error) {
     console.error("Error creating report:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+router.put("/update-report/:reportId", async (req, res) => {
+  const report=req.body;
+  const { reportId } = req.params;
+  try{
+    if (!mongoose.Types.ObjectId.isValid(reportId)) {
+      return res.status(400).json({ message: "Invalid reportId" });
+    }
+    // Normalize payload: support both { final_report: {...} } and direct report object
+    const payload = report.final_report || report;
+
+    // Build update map with safe optional chaining (handles missing fields)
+    const updates = {
+      "candidate_overview.summary": payload.candidate_overview?.summary,
+      "overall_performance.score": payload.overall_performance?.average_score,
+      "overall_performance.performance_level": payload.overall_performance?.performance_level,
+      "overall_performance.summary": payload.overall_performance?.summary,
+      strengths: payload.strengths,
+      weaknesses: payload.weaknesses,
+      // Support both capitalized and lowercase section keys from frontend
+      "section_wise_evaluation.hr.score": payload.section_wise_evaluation?.HR?.average_score ?? payload.section_wise_evaluation?.hr?.average_score,
+      "section_wise_evaluation.hr.feedback": payload.section_wise_evaluation?.HR?.feedback ?? payload.section_wise_evaluation?.hr?.feedback,
+      "section_wise_evaluation.general.score": payload.section_wise_evaluation?.General?.average_score ?? payload.section_wise_evaluation?.general?.average_score,
+      "section_wise_evaluation.general.feedback": payload.section_wise_evaluation?.General?.feedback ?? payload.section_wise_evaluation?.general?.feedback,
+      "section_wise_evaluation.technical.score": payload.section_wise_evaluation?.Technical?.average_score ?? payload.section_wise_evaluation?.technical?.average_score,
+      "section_wise_evaluation.technical.feedback": payload.section_wise_evaluation?.Technical?.feedback ?? payload.section_wise_evaluation?.technical?.feedback,
+      "final_recommendation.decision": payload.final_recommendation?.decision,
+      "final_recommendation.justification": payload.final_recommendation?.justification
+    };
+
+    // Remove undefined values so we don't overwrite with undefined in MongoDB
+    Object.keys(updates).forEach(key => {
+      if (updates[key] === undefined) delete updates[key];
+    });
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: "No valid report fields provided to update." });
+    }
+
+    const updatedReport = await FinalReport.findByIdAndUpdate(
+      reportId,
+      { $set: updates },
+      { new: true },
+      {upsert:true}
+    );
+
+    if (!updatedReport) {
+      return res.status(404).json({ success: false, message: "Report not found" });
+    }
+
+    // Return updated report
+    return res.json({ success: true, message: "Report updated successfully", report: updatedReport });
+    if (!updatedReport) {
+      return res.status(404).json({ success: false, message: "Report not found" });
+    }
+
+  }catch(error){
+    console.error("Error updating report:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+})
+router.get('/candidates/:userId', async (req, res) => {
+  try {
+    // Search by interviewerId (the HR/Interviewer ID) instead of userId
+    const candidates = await FinalReport.find({ interviewerId: req.params.userId });
+    res.json(candidates);
+  } catch (error) {
+    console.error('Error fetching candidates:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+router.post('/candidate-action', async (req, res) => {
+  try {
+    const { 
+      candidateId, 
+      candidateEmail, 
+      candidateName, 
+      action, 
+      companyName, 
+      interviewerId 
+    } = req.body;
+
+    if (!candidateEmail || !action || !companyName) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Update FinalReport with decision status
+    const updatedReport = await FinalReport.findByIdAndUpdate(
+      candidateId,
+      { 
+        decision_status: action, // 'selected' or 'rejected'
+        company_name: companyName,
+        decision_date: new Date(),
+        decided_by: interviewerId
+      },
+      { new: true, upsert: true }
+      
+    );
+
+    // ✅ FIXED: Use correct transporter config
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS  // Use App Password, not regular password
+      }
+    });
+
+    const emailSubject = action === 'selected' 
+      ? `🎉 Congratulations! You have been Selected by ${companyName}`
+      : `Interview Update: Your Status with ${companyName}`;
+
+    const emailBody = action === 'selected'
+      ? `<h2>Congratulations ${candidateName}!</h2>
+         <p>We are pleased to inform you that you have been <strong>SELECTED</strong> by <strong>${companyName}</strong>.</p>
+         <p>We will contact you soon with further details.</p>
+         <p>Best regards,<br>Interview.ai Team</p>`
+      : `<h2>Update: ${candidateName}</h2>
+         <p>Thank you for interviewing with <strong>${companyName}</strong>.</p>
+         <p>Unfortunately, we have decided not to move forward at this time.</p>
+         <p>We appreciate your time and effort. Best of luck with your future endeavors!</p>
+         <p>Best regards,<br>Interview.ai Team</p>`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: candidateEmail,
+      subject: emailSubject,
+      html: emailBody
+    });
+
+    res.json({ 
+      message: `Candidate ${action} successfully. Email sent to ${candidateEmail}`,
+      success: true 
+    });
+  } catch (error) {
+    console.error('Error processing candidate action:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
