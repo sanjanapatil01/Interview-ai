@@ -139,7 +139,6 @@ export default function InterviewCheck() {
         return;
       }
 
-      // ✅ Interview window = start → start + 30 minutes
       const end = new Date(start.getTime() + 30 * 60000);
       setScheduledStart(start);
       setScheduledEnd(end);
@@ -206,7 +205,7 @@ export default function InterviewCheck() {
           <li>Maintain a professional posture and dress appropriately.</li>
         </ul>
 
-        {/* ✨ Motivation message outside list */}
+        {/*  Motivation message outside list */}
         <p style={styles.quote}>
           “Every interview is an opportunity — believe in yourself and let your confidence speak for you.”
         </p>

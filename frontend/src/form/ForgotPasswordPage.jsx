@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      // 1. Call backend route to initiate password reset (generate OTP)
+      //  Call backend route to initiate password reset (generate OTP)
       const response = await fetch("http://localhost:8000/api/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
       if (response.ok) {
         alert("Password reset initiated. Please check your email for the verification code.");
         
-        // 2. Redirect to OTP page, passing the email and a flag indicating a reset flow
+        // Redirect to OTP page, passing the email and a flag indicating a reset flow
         navigate('/otp', { 
             state: { 
                 email: form.email, 

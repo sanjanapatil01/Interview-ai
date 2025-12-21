@@ -12,7 +12,7 @@ import { doc, setDoc } from 'firebase/firestore';
 
 export default function FirstPage() {
 
-  const [activeTab, setActiveTab] = useState("login"); // "login" | "register"
+  const [activeTab, setActiveTab] = useState("login"); 
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -54,7 +54,7 @@ const AuthLogo = () => {
     }
 
     try {
-        // 1. Create User in Firebase Authentication (Uses email and password)
+        // Create User in Firebase Authentication (Uses email and password)
         const userCredential = await createUserWithEmailAndPassword(
             auth,
             form.email,
@@ -62,7 +62,7 @@ const AuthLogo = () => {
         );
         const user = userCredential.user;
         
-        // 2. [Optional Firestore Save]
+        // [Optional Firestore Save]
         // You are using both MongoDB and Firestore. Ensure you save to Firestore if needed.
         await setDoc(doc(db, 'users', user.uid), { 
             email: user.email, 
@@ -71,7 +71,7 @@ const AuthLogo = () => {
             usertype: form.usertype, 
         });
 
-        // 3. Send data (including Firebase UID) to your backend (MongoDB/OTP)
+        // Send data (including Firebase UID) to your backend (MongoDB/OTP)
         const response = await fetch("http://localhost:8000/api/register", {
             method: "POST",
             headers: {
@@ -129,7 +129,7 @@ const handleLogin = async (e) => {
   const loginIdentifier = form.email || form.username; 
 
   try {
-    // 1. Authenticate with Firebase using email and password
+    // Authenticate with Firebase using email and password
     const userCredential = await signInWithEmailAndPassword(
       auth, 
       loginIdentifier, 
@@ -137,11 +137,11 @@ const handleLogin = async (e) => {
     );
     const user = userCredential.user; // Get the authenticated Firebase user object
 
-    // 2. CRITICAL STEP: Get the Firebase ID Token
+    //  CRITICAL STEP: Get the Firebase ID Token
     // This token proves the user is authenticated via Firebase.
     const firebaseToken = await user.getIdToken();
 
-    // 3. Send the Firebase ID Token to the backend /api/login for session creation
+    //  Send the Firebase ID Token to the backend /api/login for session creation
     const response = await fetch("http://localhost:8000/api/login", {
       method: "POST",
       headers: {
