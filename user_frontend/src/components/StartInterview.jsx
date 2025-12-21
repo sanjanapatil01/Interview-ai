@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState,useParams } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 // Core Color Palette
@@ -132,7 +132,9 @@ const StartInterview = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const userId = location.state?.userId;
-  
+  const reportId  = location.state?.reportId;
+
+  console.log('reportId in StartInterview:', reportId);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -170,6 +172,7 @@ const StartInterview = () => {
           sessionId: data.session_id,
           firstQuestion: data.first_question,
           userId: userId,
+          reportId: reportId,
         },
       });
 

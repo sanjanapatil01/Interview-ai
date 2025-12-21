@@ -1,77 +1,407 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import "./Home.css";
 
-const CandidateOverview = ({ candidates, onSelect, handleSelect, handleReject }) => {
+const CandidateOverview = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [candidates, setCandidates] = useState([]);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
+  const [companyName, setCompanyName] = useState("");
 
   // Filter candidates based on searchQuery
   const filteredCandidates = useMemo(() => {
     if (!searchQuery) return candidates;
     return candidates.filter((c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase())
+      (c.candidate_overview?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.candidate_overview?.email || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [candidates, searchQuery]);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          setError('No user ID found. Please log in again.');
+          setLoading(false);
+          return;
+        }
+
+        console.log('Fetching candidates for userId:', userId);
+
+        const response = await fetch(`http://localhost:8000/api/candidates/${userId}`);
+        
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Candidates fetched (raw):', data);
+        
+        const candidatesArray = Array.isArray(data) ? data : (data?.candidates || []);
+        console.log('Setting candidates state:', candidatesArray);
+        console.log('Candidates count:', candidatesArray.length);
+        
+        setCandidates(candidatesArray);
+      } catch (error) {
+        console.error('Error fetching candidates:', error);
+        setError(error.message || 'Failed to fetch candidates');
+        setCandidates([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Handle Select/Reject Action
+  const handleCandidateAction = async (action) => {
+    if (!selectedCandidate) return;
+
+    if (!companyName.trim()) {
+      setActionMessage('⚠️ Please enter company name');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setActionMessage('');
+
+      const payload = {
+        candidateId: selectedCandidate._id,
+        candidateEmail: selectedCandidate.candidate_overview?.email,
+        candidateName: selectedCandidate.candidate_overview?.name,
+        action: action, // 'selected' or 'rejected'
+        companyName: companyName,
+        interviewerId: localStorage.getItem('userId')
+      };
+
+      const response = await fetch(`http://localhost:8000/api/candidate-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to process action`);
+      }
+
+      const result = await response.json();
+      setActionMessage(`✅ ${result.message || `Candidate ${action} successfully`}`);
+      setCompanyName('');
+
+      // Refresh candidates list after action
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('Error processing action:', error);
+      setActionMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
-    <div className="overview-container">
+    <div className="overview-container" style={{ padding: '20px' }}>
       <h1 className="overview-title">Candidate Overview</h1>
 
       {/* Search Bar */}
-      <div className="search-container">
+      <div style={{ marginBottom: '20px' }}>
         <input
           type="text"
-          placeholder="Search candidates..."
+          placeholder="Search candidates by name or email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="search-input"
+          style={{ 
+            padding: '10px 12px', 
+            width: '100%', 
+            maxWidth: '400px', 
+            borderRadius: '4px', 
+            border: '1px solid #ccc',
+            fontSize: '14px'
+          }}
         />
-       
       </div>
 
-      {/* Candidate Table */}
-      <div className="table-container">
-        <table className="candidates-table">
-          <thead className="table-head">
-            <tr>
-              <th className="table-header">Candidate Name</th>
-              <th className="table-header">Date</th>
-              <th className="table-header">Status</th>
-              <th className="table-header">Score</th>
-              <th className="table-header">Actions</th>
-              <th className="table-header">Report</th>
-            </tr>
-          </thead>
-          <tbody className="table-body">
-            {filteredCandidates.length > 0 ? (
-              filteredCandidates.map((c) => (
-                <tr key={c.id}>
-                  <td onClick={() => onSelect(c)} className="candidate-name-cell">{c.name}</td>
-                  <td className="table-cell">{c.date}</td>
-                  <td className="table-cell">
-                    <span className={`status-badge status-${c.status.toLowerCase()}`}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="table-cell">{c.score}</td>
-                  <td className="actions-cell">
-                    <button onClick={() => handleSelect(c.id)} className="select-action-btn">Select</button>
-                    <button onClick={() => handleReject(c.id)} className="reject-action-btn">Reject</button>
-                  </td>
-                  <td className="report-cell">
-                    <a href={c.pdfLink} className="view-report-link">View Report</a>
-                  </td>
-                </tr>
-              ))
+      {/* Error Message */}
+      {error && (
+        <div style={{ 
+          padding: '12px', 
+          marginBottom: '20px', 
+          backgroundColor: '#ffebee', 
+          border: '1px solid #f44336', 
+          borderRadius: '4px',
+          color: '#c62828'
+        }}>
+          Error: {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '40px',
+          color: '#0f0d0dff'
+        }}>
+          <p>Loading candidates...</p>
+        </div>
+      )}
+
+      {/* Candidates List */}
+      {!loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)', gap: '20px', minHeight: '500px' }}>
+          {/* Left: Candidates List */}
+          <div>
+            <h3>Candidates ({filteredCandidates.length})</h3>
+            <div style={{ 
+              maxHeight: '600px', 
+              overflowY: 'auto', 
+              border: '1px solid #ddd', 
+              borderRadius: '4px',
+              backgroundColor: '#fafafa'
+            }}>
+              {filteredCandidates.length > 0 ? (
+                filteredCandidates.map((candidate) => (
+                  <div
+                    key={candidate._id}
+                    onClick={() => setSelectedCandidate(candidate)}
+                    style={{
+                      padding: '12px',
+                      borderBottom: '1px solid #eee',
+                      cursor: 'pointer',
+                      backgroundColor: selectedCandidate?._id === candidate._id ? '#e3f2fd' : 'transparent',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    <p style={{ margin: '0', fontWeight: 'bold', color: '#333' }}>
+                      {candidate.candidate_overview?.name || 'N/A'}
+                    </p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.9em', color: '#130a0aff' }}>
+                      {candidate.candidate_overview?.email || 'N/A'}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p style={{ padding: '12px', color: '#0d0b0bff', textAlign: 'center' }}>
+                  {candidates.length === 0 ? 'No candidates found' : 'No matches'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Candidate Details */}
+          <div>
+            {selectedCandidate ? (
+              <div style={{ 
+                border: '1px solid #ddd', 
+                borderRadius: '4px', 
+                padding: '20px', 
+                maxHeight: '600px', 
+                overflowY: 'auto',
+                backgroundColor: '#fff',
+                color: 'black'
+              }}>
+                <h3 style={{ marginTop: 0 }}>{selectedCandidate.candidate_overview?.name || 'N/A'}</h3>
+                <p><strong>Email:</strong> {selectedCandidate.candidate_overview?.email || 'N/A'}</p>
+
+                {/* Candidate Overview Summary */}
+                {selectedCandidate.candidate_overview?.summary && (
+                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                    <h4 style={{ marginTop: 0 }}>Candidate Summary</h4>
+                    <p>{selectedCandidate.candidate_overview.summary}</p>
+                  </div>
+                )}
+
+                {/* Overall Performance */}
+                {selectedCandidate.overall_performance && (
+                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                    <h4 style={{ marginTop: 0 }}>Overall Performance</h4>
+                    <p><strong>Score:</strong> {selectedCandidate.overall_performance.score || 'N/A'}/100</p>
+                    <p><strong>Level:</strong> {selectedCandidate.overall_performance.performance_level || 'N/A'}</p>
+                    {selectedCandidate.overall_performance.summary && (
+                      <p><strong>Summary:</strong> {selectedCandidate.overall_performance.summary}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Section Wise Evaluation */}
+                {selectedCandidate.section_wise_evaluation && (
+                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                    <h4 style={{ marginTop: 0 }}>Section Wise Evaluation</h4>
+                    
+                    {selectedCandidate.section_wise_evaluation.general && (
+                      <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+                        <p><strong>General:</strong> {selectedCandidate.section_wise_evaluation.general.score || 'N/A'}/100</p>
+                        {selectedCandidate.section_wise_evaluation.general.feedback && (
+                          <p style={{ fontSize: '0.9em', color: '#070606ff', marginTop: '4px' }}>
+                            <em>{selectedCandidate.section_wise_evaluation.general.feedback}</em>
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedCandidate.section_wise_evaluation.technical && (
+                      <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+                        <p><strong>Technical:</strong> {selectedCandidate.section_wise_evaluation.technical.score || 'N/A'}/100</p>
+                        {selectedCandidate.section_wise_evaluation.technical.feedback && (
+                          <p style={{ fontSize: '0.9em', color: '#160f0fff', marginTop: '4px' }}>
+                            <em>{selectedCandidate.section_wise_evaluation.technical.feedback}</em>
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedCandidate.section_wise_evaluation.hr && (
+                      <div style={{ marginBottom: '12px' }}>
+                        <p><strong>HR:</strong> {selectedCandidate.section_wise_evaluation.hr.score || 'N/A'}/100</p>
+                        {selectedCandidate.section_wise_evaluation.hr.feedback && (
+                          <p style={{ fontSize: '0.9em', color: '#0e0a0aff', marginTop: '4px' }}>
+                            <em>{selectedCandidate.section_wise_evaluation.hr.feedback}</em>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Strengths & Weaknesses */}
+                <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {selectedCandidate.strengths && selectedCandidate.strengths.length > 0 && (
+                    <div style={{ padding: '12px', backgroundColor: '#e8f5e9', borderRadius: '4px' }}>
+                      <h5 style={{ marginTop: 0, color: '#2e7d32' }}>Strengths</h5>
+                      <ul style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '0.9em' }}>
+                        {selectedCandidate.strengths.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {selectedCandidate.weaknesses && selectedCandidate.weaknesses.length > 0 && (
+                    <div style={{ padding: '12px', backgroundColor: '#ffebee', borderRadius: '4px' }}>
+                      <h5 style={{ marginTop: 0, color: '#c62828' }}>Weaknesses</h5>
+                      <ul style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '0.9em' }}>
+                        {selectedCandidate.weaknesses.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Final Recommendation */}
+                {selectedCandidate.final_recommendation && (
+                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fff3e0', borderRadius: '4px', border: '1px solid #ffb74d' }}>
+                    <h4 style={{ marginTop: 0 }}>Final Recommendation</h4>
+                    <p><strong>Decision:</strong> <span style={{ color: '#e65100', fontWeight: 'bold' }}>{selectedCandidate.final_recommendation.decision || 'N/A'}</span></p>
+                    {selectedCandidate.final_recommendation.justification && (
+                      <p><strong>Justification:</strong> {selectedCandidate.final_recommendation.justification}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Company Name Input & Action Buttons */}
+                <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                  <p style={{ marginTop: 0 }}>
+                    <strong>Company Name:</strong>
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Enter company name..."
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      marginBottom: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #ccc',
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+
+                  {/* Action Message */}
+                  {actionMessage && (
+                    <p style={{
+                      padding: '10px',
+                      marginBottom: '12px',
+                      borderRadius: '4px',
+                      backgroundColor: actionMessage.includes('✅') ? '#e8f5e9' : '#ffebee',
+                      color: actionMessage.includes('✅') ? '#2e7d32' : '#c62828',
+                      fontSize: '0.9em'
+                    }}>
+                      {actionMessage}
+                    </p>
+                  )}
+
+                  {/* Select/Reject Buttons */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <button
+                      onClick={() => handleCandidateAction('selected')}
+                      disabled={actionLoading}
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#4CAF50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: actionLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        opacity: actionLoading ? 0.6 : 1,
+                        transition: 'opacity 0.2s'
+                      }}
+                    >
+                      {actionLoading ? 'Processing...' : '✅ Select'}
+                    </button>
+                    <button
+                      onClick={() => handleCandidateAction('rejected')}
+                      disabled={actionLoading}
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: actionLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        opacity: actionLoading ? 0.6 : 1,
+                        transition: 'opacity 0.2s'
+                      }}
+                    >
+                      {actionLoading ? 'Processing...' : '❌ Reject'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <tr>
-                <td colSpan="6" className="no-candidates-cell">
-                  No candidates found
-                </td>
-              </tr>
+              <div style={{ 
+                padding: '40px', 
+                color: '#999', 
+                textAlign: 'center',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                backgroundColor: '#fafafa'
+              }}>
+                <p>Select a candidate to view details</p>
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
