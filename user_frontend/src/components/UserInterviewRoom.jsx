@@ -816,7 +816,7 @@ const UserInterviewRoom = () => {
   const submitAnswer = async (answer) => {
     try {
       const payload = { session_id: sessionId, answer, user_id: userId };
-      const res = await fetch(`http://127.0.0.1:5000/api/flask/submit_answer/${userId}`, {
+      const res = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/submit_answer/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -835,7 +835,7 @@ const UserInterviewRoom = () => {
         console.log('Final Report:', data.final_report);
          console.log(data.final_report.candidate_overview.summary);
          const report=data.final_report;
-         const add=await fetch(`http://localhost:8000/api/update-report/${reportId}`,{
+         const add=await fetch(`${process.env.REACT_APP_API_BASE_URL}/update-report/${reportId}`,{
           method:'PUT',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({final_report:report})

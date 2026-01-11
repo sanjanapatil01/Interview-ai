@@ -106,7 +106,7 @@ const UserForm = () => {
   };
 useEffect(() => {
     console.log("Fetched session ID from URL:", sessionId);
-    const interviewerid=fetch(`http://localhost:8000/api/check_session/${sessionId}`)
+    const interviewerid=fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}`)
     .then(response => response.json())
     .then(data => {
         setInterviewerId(data.interviewerId);
@@ -138,7 +138,7 @@ useEffect(() => {
 
 const createReport = async (sessionId, userId, email, username) => {
   try {
-    const response = await fetch("http://localhost:8000/api/create-report", {
+    const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/create-report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -173,7 +173,7 @@ const uploadResume = async () => {
     formData.append('name', form.username);
     formData.append('email', form.email);
 
-    const response = await fetch('http://127.0.0.1:5000/api/flask/upload_resume', {
+    const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/upload_resume`, {
       method: 'POST',
       body: formData,
     });
@@ -197,7 +197,7 @@ const uploadResume = async () => {
 
     // If createReport failed, attempt recovery
     try {
-      const checkRes = await fetch(`http://localhost:8000/api/check_session/${sessionId}/${form.email}`);
+      const checkRes = await fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}/${form.email}`);
       const checkData = await checkRes.json();
       if (checkRes.ok && checkData && (checkData.userId || checkData.user_id)) {
         const existingUserId = checkData.userId || checkData.user_id || userIdFromUpload;
@@ -232,7 +232,7 @@ const checkEmailExists = async (e) => {
   setIsLoading(true);
 
   try {
-    const res = await fetch(`http://localhost:8000/api/check_session/${sessionId}/${form.email}`);
+    const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}/${form.email}`);
     const data = await res.json();
 
     if (!data.emailExists) return setError("Email not found. Register first.");

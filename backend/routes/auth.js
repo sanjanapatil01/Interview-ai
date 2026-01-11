@@ -479,7 +479,6 @@ router.post('/candidate-action', async (req, res) => {
         decided_by: interviewerId
       },
       { new: true, upsert: true }
-      
     );
 
     // ✅ FIXED: Use correct transporter config
@@ -513,9 +512,13 @@ router.post('/candidate-action', async (req, res) => {
       html: emailBody
     });
 
+    // Fetch the updated report populated with decided_by details
+    const populatedReport = await FinalReport.findById(updatedReport._id).populate('decided_by', 'name email');
+
     res.json({ 
       message: `Candidate ${action} successfully. Email sent to ${candidateEmail}`,
-      success: true 
+      success: true,
+      updatedReport: populatedReport
     });
   } catch (error) {
     console.error('Error processing candidate action:', error);

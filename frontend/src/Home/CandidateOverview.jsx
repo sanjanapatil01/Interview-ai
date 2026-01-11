@@ -11,6 +11,20 @@ const CandidateOverview = () => {
   const [actionMessage, setActionMessage] = useState("");
   const [companyName, setCompanyName] = useState("");
 
+  // Derived display values for selected candidate
+  const decidedByDisplay = (() => {
+    const db = selectedCandidate?.decided_by;
+    if (!db) return 'N/A';
+    if (typeof db === 'string') return db;
+    if (db.name) return db.name;
+    if (db.email) return db.email;
+    if (db._id) return String(db._id);
+    try { return JSON.stringify(db); } catch (e) { return String(db); }
+  })();
+
+  const decisionStatus = selectedCandidate?.decision_status || selectedCandidate?.final_recommendation?.decision || null;
+  const isDecisionPending = !decisionStatus || decisionStatus === 'pending';
+
   // Filter candidates based on searchQuery
   const filteredCandidates = useMemo(() => {
     if (!searchQuery) return candidates;
@@ -35,7 +49,7 @@ const CandidateOverview = () => {
 
         console.log('Fetching candidates for userId:', userId);
 
-        const response = await fetch(`http://localhost:8000/api/candidates/${userId}`);
+        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/candidates/${userId}`);
         
         console.log('Response status:', response.status);
 
@@ -85,7 +99,7 @@ const CandidateOverview = () => {
         interviewerId: localStorage.getItem('userId')
       };
 
-      const response = await fetch(`http://localhost:8000/api/candidate-action`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/candidate-action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -99,10 +113,25 @@ const CandidateOverview = () => {
       setActionMessage(`✅ ${result.message || `Candidate ${action} successfully`}`);
       setCompanyName('');
 
-      // Refresh candidates list after action
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Use updated report from server when available, otherwise do an optimistic update
+      const updatedReport = result.updatedReport || result.report || result.data || null;
+
+      let updatedCandidate;
+      if (updatedReport) {
+        updatedCandidate = { ...selectedCandidate, ...updatedReport };
+      } else {
+        const decidedByName = localStorage.getItem('userName') || null;
+        updatedCandidate = {
+          ...selectedCandidate,
+          decision_status: action === 'selected' ? 'selected' : 'rejected',
+          company_name: companyName,
+          decision_date: new Date().toISOString(),
+          decided_by: decidedByName ? { _id: localStorage.getItem('userId'), name: decidedByName } : localStorage.getItem('userId')
+        };
+      }
+
+      setSelectedCandidate(updatedCandidate);
+      setCandidates(prev => prev.map(c => c._id === updatedCandidate._id ? updatedCandidate : c));
     } catch (error) {
       console.error('Error processing action:', error);
       setActionMessage(`❌ Error: ${error.message}`);
@@ -227,7 +256,7 @@ const CandidateOverview = () => {
                 {selectedCandidate.overall_performance && (
                   <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
                     <h4 style={{ marginTop: 0 }}>Overall Performance</h4>
-                    <p><strong>Score:</strong> {selectedCandidate.overall_performance.score || 'N/A'}/100</p>
+                    <p><strong>Score:</strong> {selectedCandidate.overall_performance.score || 'N/A'}/10</p>
                     <p><strong>Level:</strong> {selectedCandidate.overall_performance.performance_level || 'N/A'}</p>
                     {selectedCandidate.overall_performance.summary && (
                       <p><strong>Summary:</strong> {selectedCandidate.overall_performance.summary}</p>
@@ -242,7 +271,7 @@ const CandidateOverview = () => {
                     
                     {selectedCandidate.section_wise_evaluation.general && (
                       <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
-                        <p><strong>General:</strong> {selectedCandidate.section_wise_evaluation.general.score || 'N/A'}/100</p>
+                        <p><strong>General:</strong> {selectedCandidate.section_wise_evaluation.general.score || 'N/A'}/10</p>
                         {selectedCandidate.section_wise_evaluation.general.feedback && (
                           <p style={{ fontSize: '0.9em', color: '#070606ff', marginTop: '4px' }}>
                             <em>{selectedCandidate.section_wise_evaluation.general.feedback}</em>
@@ -253,7 +282,7 @@ const CandidateOverview = () => {
 
                     {selectedCandidate.section_wise_evaluation.technical && (
                       <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
-                        <p><strong>Technical:</strong> {selectedCandidate.section_wise_evaluation.technical.score || 'N/A'}/100</p>
+                        <p><strong>Technical:</strong> {selectedCandidate.section_wise_evaluation.technical.score || 'N/A'}/10</p>
                         {selectedCandidate.section_wise_evaluation.technical.feedback && (
                           <p style={{ fontSize: '0.9em', color: '#160f0fff', marginTop: '4px' }}>
                             <em>{selectedCandidate.section_wise_evaluation.technical.feedback}</em>
@@ -264,7 +293,7 @@ const CandidateOverview = () => {
 
                     {selectedCandidate.section_wise_evaluation.hr && (
                       <div style={{ marginBottom: '12px' }}>
-                        <p><strong>HR:</strong> {selectedCandidate.section_wise_evaluation.hr.score || 'N/A'}/100</p>
+                        <p><strong>HR:</strong> {selectedCandidate.section_wise_evaluation.hr.score || 'N/A'}/10</p>
                         {selectedCandidate.section_wise_evaluation.hr.feedback && (
                           <p style={{ fontSize: '0.9em', color: '#0e0a0aff', marginTop: '4px' }}>
                             <em>{selectedCandidate.section_wise_evaluation.hr.feedback}</em>
@@ -311,81 +340,91 @@ const CandidateOverview = () => {
                   </div>
                 )}
 
-                {/* Company Name Input & Action Buttons */}
-                <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-                  <p style={{ marginTop: 0 }}>
-                    <strong>Company Name:</strong>
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="Enter company name..."
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      marginBottom: '12px',
-                      borderRadius: '4px',
-                      border: '1px solid #ccc',
-                      fontSize: '14px',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-
-                  {/* Action Message */}
-                  {actionMessage && (
-                    <p style={{
-                      padding: '10px',
-                      marginBottom: '12px',
-                      borderRadius: '4px',
-                      backgroundColor: actionMessage.includes('✅') ? '#e8f5e9' : '#ffebee',
-                      color: actionMessage.includes('✅') ? '#2e7d32' : '#c62828',
-                      fontSize: '0.9em'
-                    }}>
-                      {actionMessage}
+                {/* Company Name Input & Action Buttons OR Decision Details */}
+                {isDecisionPending ? (
+                  <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                    <p style={{ marginTop: 0 }}>
+                      <strong>Company Name:</strong>
                     </p>
-                  )}
+                    <input
+                      type="text"
+                      placeholder="Enter company name..."
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        marginBottom: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
 
-                  {/* Select/Reject Buttons */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <button
-                      onClick={() => handleCandidateAction('selected')}
-                      disabled={actionLoading}
-                      style={{
+                    {/* Action Message */}
+                    {actionMessage && (
+                      <p style={{
                         padding: '10px',
-                        backgroundColor: '#4CAF50',
-                        color: 'white',
-                        border: 'none',
+                        marginBottom: '12px',
                         borderRadius: '4px',
-                        cursor: actionLoading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        opacity: actionLoading ? 0.6 : 1,
-                        transition: 'opacity 0.2s'
-                      }}
-                    >
-                      {actionLoading ? 'Processing...' : '✅ Select'}
-                    </button>
-                    <button
-                      onClick={() => handleCandidateAction('rejected')}
-                      disabled={actionLoading}
-                      style={{
-                        padding: '10px',
-                        backgroundColor: '#f44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: actionLoading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        opacity: actionLoading ? 0.6 : 1,
-                        transition: 'opacity 0.2s'
-                      }}
-                    >
-                      {actionLoading ? 'Processing...' : '❌ Reject'}
-                    </button>
+                        backgroundColor: actionMessage.includes('✅') ? '#e8f5e9' : '#ffebee',
+                        color: actionMessage.includes('✅') ? '#2e7d32' : '#c62828',
+                        fontSize: '0.9em'
+                      }}>
+                        {actionMessage}
+                      </p>
+                    )}
+
+                    {/* Select/Reject Buttons */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button
+                        onClick={() => handleCandidateAction('selected')}
+                        disabled={actionLoading}
+                        style={{
+                          padding: '10px',
+                          backgroundColor: '#4CAF50',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: actionLoading ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          opacity: actionLoading ? 0.6 : 1,
+                          transition: 'opacity 0.2s'
+                        }}
+                      >
+                        {actionLoading ? 'Processing...' : '✅ Select'}
+                      </button>
+                      <button
+                        onClick={() => handleCandidateAction('rejected')}
+                        disabled={actionLoading}
+                        style={{
+                          padding: '10px',
+                          backgroundColor: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: actionLoading ? 'not-allowed' : 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          opacity: actionLoading ? 0.6 : 1,
+                          transition: 'opacity 0.2s'
+                        }}
+                      >
+                        {actionLoading ? 'Processing...' : '❌ Reject'}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#fff8e1', borderRadius: '4px', border: '1px solid #ffecb3' }}>
+                    <h4 style={{ marginTop: 0 }}>Decision Details</h4>
+                    <p><strong>Status:</strong> {decisionStatus || 'N/A'}</p>
+                    <p><strong>Company:</strong> {selectedCandidate.company_name || 'N/A'}</p>
+                    <p><strong>Date:</strong> {selectedCandidate.decision_date ? new Date(selectedCandidate.decision_date).toLocaleString() : 'N/A'}</p>
+                    <p><strong>Decided By:</strong> {decidedByDisplay}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ 

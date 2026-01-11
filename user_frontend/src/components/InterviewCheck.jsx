@@ -2,7 +2,7 @@ import { Italic } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-const BACKEND_BASE = "http://localhost:8000/api"; // Update if deployed
+const BACKEND_BASE = process.env.REACT_APP_API_BASE_URL; // Update if deployed
 
 const styles = {
   container: { textAlign: "center", marginTop: "0vh", padding: 20 },
@@ -107,7 +107,7 @@ export default function InterviewCheck() {
 
     setStatus("checking");
     try {
-      const url = `${BACKEND_BASE.replace("/api", "")}/api/check_session/${sessionId}/${email}`;
+      const url = `${BACKEND_BASE}/check_session/${sessionId}/${email}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Network response not ok");
 

@@ -50,7 +50,27 @@ const FinalReportSchema = new mongoose.Schema({
       justification: { type: String, default: null }
     }, { _id: false }),
     default: { decision: null, justification: null }
+  },
+ decision_status :{
+    type: String,
+    enum: ['pending','selected','rejected'],
+    default: 'pending'
+  },
+  company_name:{
+    type: String,
+    default: null
+  },
+  decision_date: {
+    type: Date,
+    default: null
+  },
+  decided_by:{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
   }
+
+
 
 }, { timestamps: true });
 
