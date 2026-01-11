@@ -19,7 +19,7 @@ const CandidateDetail = ({ candidate, handleSelect, handleReject, goBack }) => {
             <div className="report-details">
               <p className="report-item"><span className="report-label">Communication:</span> Excellent</p>
               <p className="report-item"><span className="report-label">Technical Skill:</span> Good</p>
-              <p className="report-item"><span className="report-label">Fluency:</span> {candidate.score > 80 ? "Very Good" : "Good"}</p>
+              <p className="report-item"><span className="report-label">Fluency:</span> {candidate.score > 5 ? "Very Good" : "Good"}</p>
               <p className="report-item"><span className="report-label">Confidence:</span> High</p>
               <a href={candidate.pdfLink} className="pdf-download-link">Download Full Report (PDF)</a>
             </div>

@@ -9,7 +9,7 @@ const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime
   const [error, setError] = useState(null);
   const [data, setData] = useState([]);
 
-  const API_URL = "http://localhost:8000/api/generate";
+  const API_URL = `${process.env.REACT_APP_API_BASE_URL}/generate`;
 
   const handleGenerate = async () => {
     if (!interviewDate || !startTime) {
@@ -43,7 +43,7 @@ const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime
       }
 
       const responseData = await response.json();
-      const newLink = `http://localhost:3001/interviewcheck/${responseData.sessionId}`;
+      const newLink = `${process.env.REACT_APP_USER_URL}/${responseData.sessionId}`;
       setGeneratedLink(newLink);
     } catch (err) {
       setError(err.message);

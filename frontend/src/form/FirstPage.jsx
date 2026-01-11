@@ -72,7 +72,7 @@ const AuthLogo = () => {
         });
 
         // Send data (including Firebase UID) to your backend (MongoDB/OTP)
-        const response = await fetch("http://localhost:8000/api/register", {
+        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/register`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -142,7 +142,7 @@ const handleLogin = async (e) => {
     const firebaseToken = await user.getIdToken();
 
     //  Send the Firebase ID Token to the backend /api/login for session creation
-    const response = await fetch("http://localhost:8000/api/login", {
+    const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

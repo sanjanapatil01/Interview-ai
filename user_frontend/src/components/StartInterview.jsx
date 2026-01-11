@@ -153,7 +153,7 @@ const StartInterview = () => {
       stream.getTracks().forEach(track => track.stop()); // stop preview immediately
 
       //  Proceed with backend API call
-      const response = await fetch('http://127.0.0.1:5000/api/flask/start_interview', {
+      const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/start_interview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),

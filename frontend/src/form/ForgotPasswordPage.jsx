@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
 
     try {
       //  Call backend route to initiate password reset (generate OTP)
-      const response = await fetch("http://localhost:8000/api/forgot-password", {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

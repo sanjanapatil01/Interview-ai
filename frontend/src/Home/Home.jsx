@@ -40,7 +40,7 @@ const Home = () => {
         }
 
         try {
-            const response = await fetch("http://localhost:8000/api/profile", {
+            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile`, {
                 method: "GET",
                 headers: {
                     "Authorization": `Bearer ${token}`,
