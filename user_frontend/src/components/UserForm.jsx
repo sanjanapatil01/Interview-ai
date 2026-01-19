@@ -1,86 +1,11 @@
 // export default UserForm;
 import React, { useState, useEffect } from 'react';
 import { data, useNavigate, useParams } from 'react-router-dom';
+import './userForm.css';
 
-// New Core Color Palette
-const colors = {
-  primary: '#3498db',
-  secondary: '#2980b9',
-  text: '#2c3e50',
-  secondaryText: '#7f8c8d',
-  backgroundLight: '#f8f9fa',
-  backgroundWhite: '#ffffff',
-  border: '#e9ecef',
-  active: '#27ae60',
-  destructive: '#e74c3c',
-  inactive: '#bdc3c7',
-};
 
-// CSS Styles
-const styles = `
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
 
-  body { background: ${colors.backgroundWhite}; font-family: 'Inter', sans-serif; }
 
-  .main-container { background: ${colors.backgroundWhite}; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 20px; }
-
-  .header { width: 100%; padding: 20px; display: flex; justify-content: center; animation: fadeIn 0.8s ease-out; }
-  .logo { font-size: 2.5rem; font-weight: bold; background: linear-gradient(135deg, ${colors.primary}, ${colors.secondary}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
-  .auth-form-container { background: ${colors.backgroundWhite}; border-radius: 1rem; padding: 2.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 500px; width: 100%; text-align: center; animation: fadeIn 0.8s ease-out; }
-
-  .form-title { font-size: 1.75rem; font-weight: 600; color: ${colors.text}; margin-bottom: 0.5rem; }
-  .form-description { font-size: 1rem; color: ${colors.secondaryText}; margin-bottom: 1.5rem; }
-
-  .form-group { text-align: left; margin-bottom: 1.5rem; }
-  .form-label { display: block; font-size: 0.9rem; font-weight: 500; color: ${colors.text}; margin-bottom: 0.5rem; }
-
-  .form-input-style, .file-input-style {
-    width: 100%; padding: 1rem; border: 1px solid ${colors.border};
-    border-radius: 0.5rem; font-size: 1rem; color: ${colors.text};
-    background: ${colors.backgroundLight}; transition: all 0.3s ease;
-  }
-
-  .form-input-style:focus { outline: none; border-color: ${colors.primary}; box-shadow: 0 0 0 3px rgba(52,152,219,0.2); }
-
-  .file-input-style::file-selector-button {
-    background: ${colors.primary}; color: ${colors.backgroundWhite}; border: none;
-    padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer;
-  }
-
-  .file-input-style::file-selector-button:hover { background: ${colors.secondary}; }
-
-  .error-message {
-    color: ${colors.destructive}; font-size: 0.9rem; margin-top: 0.5rem;
-    padding: 0.75rem; background: #fbecec; border-radius: 0.5rem;
-    border: 1px solid ${colors.destructive};
-  }
-
-  .submit-button {
-    width: 100%; padding: 1rem; border: none; border-radius: 0.5rem;
-    font-size: 1.1rem; font-weight: bold; cursor: pointer;
-    background: linear-gradient(135deg, ${colors.primary}, ${colors.secondary});
-    color: ${colors.backgroundWhite}; transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(52,152,219,0.3);
-  }
-
-  .submit-button:hover:not(:disabled) {
-    background: linear-gradient(135deg, ${colors.secondary}, ${colors.primary});
-    box-shadow: 0 6px 20px rgba(52,152,219,0.4);
-    animation: pulse 0.5s infinite alternate;
-  }
-
-  .submit-button:disabled { opacity: 0.6; cursor: not-allowed; background: ${colors.inactive}; }
-
-  .footer { width: 100%; text-align: center; padding: 1rem; color: ${colors.secondaryText}; font-size: 0.8rem; border-top: 1px solid ${colors.border}; }
-`;
-
-const injectStyles = () => {
-  const styleTag = document.createElement('style');
-  styleTag.textContent = styles;
-  document.head.appendChild(styleTag);
-};
 
 const UserForm = () => {
   const { id: sessionId } = useParams();
@@ -90,6 +15,8 @@ const UserForm = () => {
     username: '',
     email: '',
     resume: null,
+    preferredDomain: '',
+    yearOfStudy: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -99,7 +26,6 @@ const UserForm = () => {
   const [date, setDate] = useState(null);
   const [reportId, setReportId] = useState(null);
 
-  useEffect(() => { injectStyles(); }, []);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -121,6 +47,26 @@ useEffect(() => {
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+
+  const preferredDomainOptions = [
+    'JAVA FullStack Developer',
+    'AI-ML Engineer',
+    'UI-UX Designer',
+    'Graphics Designer',
+    'Video Editor',
+    'MERN Stack Developer',
+    'Marketing Intern',
+    'R&D Analyst',
+    'Others'
+  ];
+
+  const yearOfStudyOptions = [
+    '1st Year',
+    '2nd Year',
+    '3rd Year',
+    'Final Year',
+    'Graduated'
   ];
 
   const handleFileChange = (e) => {
@@ -147,6 +93,8 @@ const createReport = async (sessionId, userId, email, username) => {
         userId, // ADD THIS — was missing
         email,
         name: username,
+        preferredDomain: form.preferredDomain,
+        yearOfStudy: form.yearOfStudy,
       }),
     });
 
@@ -172,6 +120,7 @@ const uploadResume = async () => {
     formData.append('resume', form.resume);
     formData.append('name', form.username);
     formData.append('email', form.email);
+    
 
     const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/upload_resume`, {
       method: 'POST',
@@ -287,6 +236,38 @@ const checkEmailExists = async (e) => {
                 required
                 className="form-input-style"
               />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Preferred Domain</label>
+              <select
+                name="preferredDomain"
+                value={form.preferredDomain}
+                onChange={handleChange}
+                required
+                className="form-input-style"
+              >
+                <option value="">Select your preferred domain</option>
+                {preferredDomainOptions.map((option, index) => (
+                  <option key={index} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Year of Study</label>
+              <select
+                name="yearOfStudy"
+                value={form.yearOfStudy}
+                onChange={handleChange}
+                required
+                className="form-input-style"
+              >
+                <option value="">Select your year of study</option>
+                {yearOfStudyOptions.map((option, index) => (
+                  <option key={index} value={option}>{option}</option>
+                ))}
+              </select>
             </div>
 
             <div className="form-group">

@@ -17,7 +17,9 @@ const FinalReportSchema = new mongoose.Schema({
     name: { type: String },
     email: { type: String },
     resumeUrl: { type: String, default: null },
-    summary: { type: String, default: null }
+    summary: { type: String, default: null },
+    preferredDomain: { type: String, default: null },
+    yearOfStudy: { type: String, default: null }
   },
 
   overall_performance: {

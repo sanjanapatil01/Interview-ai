@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import * as XLSX from "xlsx";
 import "./Home.css";
 
 const CandidateOverview = () => {
@@ -10,6 +11,8 @@ const CandidateOverview = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedCandidates, setSelectedCandidates] = useState([]);
 
   // Derived display values for selected candidate
   const decidedByDisplay = (() => {
@@ -25,14 +28,25 @@ const CandidateOverview = () => {
   const decisionStatus = selectedCandidate?.decision_status || selectedCandidate?.final_recommendation?.decision || null;
   const isDecisionPending = !decisionStatus || decisionStatus === 'pending';
 
-  // Filter candidates based on searchQuery
+  // Filter candidates based on searchQuery and statusFilter
   const filteredCandidates = useMemo(() => {
-    if (!searchQuery) return candidates;
-    return candidates.filter((c) =>
-      (c.candidate_overview?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.candidate_overview?.email || "").toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [candidates, searchQuery]);
+    let filtered = candidates;
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((c) => {
+        if (statusFilter === 'pending') {
+          return !c.decision_status || c.decision_status === 'pending';
+        }
+        return c.decision_status === statusFilter;
+      });
+    }
+    if (searchQuery) {
+      filtered = filtered.filter((c) =>
+        (c.candidate_overview?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.candidate_overview?.email || "").toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [candidates, searchQuery, statusFilter]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -140,9 +154,116 @@ const CandidateOverview = () => {
     }
   };
 
+  // Handle individual candidate selection
+  const handleCandidateSelection = (candidateId) => {
+    setSelectedCandidates(prev => 
+      prev.includes(candidateId) 
+        ? prev.filter(id => id !== candidateId)
+        : [...prev, candidateId]
+    );
+  };
+
+  // Handle select all candidates
+  const handleSelectAll = () => {
+    if (selectedCandidates.length === filteredCandidates.length) {
+      setSelectedCandidates([]);
+    } else {
+      setSelectedCandidates(filteredCandidates.map(c => c._id));
+    }
+  };
+
+  // Export selected candidates to XLS
+  const exportToXLS = () => {
+    if (selectedCandidates.length === 0) {
+      alert("Please select at least one candidate to export.");
+      return;
+    }
+
+    const selectedData = candidates.filter(c => selectedCandidates.includes(c._id));
+    
+    const exportData = selectedData.map(candidate => ({
+      "Name": candidate.candidate_overview?.name || "N/A",
+      "Email": candidate.candidate_overview?.email || "N/A",
+      "Preferred Domain": candidate.candidate_overview?.preferredDomain || "N/A",
+      "Year of Study": candidate.candidate_overview?.yearOfStudy || "N/A",
+      "Overall Score": candidate.overall_performance?.score || "N/A",
+      "Decision": candidate.decision_status || candidate.final_recommendation?.decision || "pending",
+      "Company": candidate.company_name || "N/A"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Candidates");
+    XLSX.writeFile(wb, `candidates_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
     <div className="overview-container" style={{ padding: '20px' }}>
       <h1 className="overview-title">Candidate Overview</h1>
+
+      {/* Status Filter Buttons */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
+        <button
+          onClick={() => setStatusFilter('all')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: statusFilter === 'all' ? '#007bff' : '#f8f9fa',
+            color: statusFilter === 'all' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          All
+        </button>
+        <button
+          onClick={() => setStatusFilter('selected')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: statusFilter === 'selected' ? '#28a745' : '#f8f9fa',
+            color: statusFilter === 'selected' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          Selected
+        </button>
+        <button
+          onClick={() => setStatusFilter('rejected')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: statusFilter === 'rejected' ? '#dc3545' : '#f8f9fa',
+            color: statusFilter === 'rejected' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          Rejected
+        </button>
+        <button
+          onClick={() => setStatusFilter('pending')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: statusFilter === 'pending' ? '#ffc107' : '#f8f9fa',
+            color: statusFilter === 'pending' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          Pending
+        </button>
+      </div>
 
       {/* Search Bar */}
       <div style={{ marginBottom: '20px' }}>
@@ -192,7 +313,35 @@ const CandidateOverview = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)', gap: '20px', minHeight: '500px' }}>
           {/* Left: Candidates List */}
           <div>
-            <h3>Candidates ({filteredCandidates.length})</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3>Candidates ({filteredCandidates.length})</h3>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px' ,color: '#333',borderColor: 'none'}}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCandidates.length === filteredCandidates.length && filteredCandidates.length > 0}
+                    onChange={handleSelectAll}
+                  />
+                  Select All
+                </label>
+                <button
+                  onClick={exportToXLS}
+                  disabled={selectedCandidates.length === 0}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: selectedCandidates.length === 0 ? '#ccc' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: selectedCandidates.length === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                 Download XLS ({selectedCandidates.length})
+                </button>
+              </div>
+            </div>
             <div style={{ 
               maxHeight: '600px', 
               overflowY: 'auto', 
@@ -204,21 +353,35 @@ const CandidateOverview = () => {
                 filteredCandidates.map((candidate) => (
                   <div
                     key={candidate._id}
-                    onClick={() => setSelectedCandidate(candidate)}
                     style={{
                       padding: '12px',
                       borderBottom: '1px solid #eee',
-                      cursor: 'pointer',
                       backgroundColor: selectedCandidate?._id === candidate._id ? '#e3f2fd' : 'transparent',
                       transition: 'background-color 0.2s',
                     }}
                   >
-                    <p style={{ margin: '0', fontWeight: 'bold', color: '#333' }}>
-                      {candidate.candidate_overview?.name || 'N/A'}
-                    </p>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.9em', color: '#130a0aff' }}>
-                      {candidate.candidate_overview?.email || 'N/A'}
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCandidates.includes(candidate._id)}
+                        onChange={() => handleCandidateSelection(candidate._id)}
+                        style={{ margin: 0 }}
+                      />
+                      <div 
+                        onClick={() => setSelectedCandidate(candidate)}
+                        style={{ 
+                          cursor: 'pointer',
+                          flex: 1
+                        }}
+                      >
+                        <p style={{ margin: '0', fontWeight: 'bold', color: '#333' }}>
+                          {candidate.candidate_overview?.name || 'N/A'}
+                        </p>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.9em', color: '#130a0aff' }}>
+                          {candidate.candidate_overview?.email || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -243,6 +406,8 @@ const CandidateOverview = () => {
               }}>
                 <h3 style={{ marginTop: 0 }}>{selectedCandidate.candidate_overview?.name || 'N/A'}</h3>
                 <p><strong>Email:</strong> {selectedCandidate.candidate_overview?.email || 'N/A'}</p>
+                <p><strong>Preferred Domain:</strong> {selectedCandidate.candidate_overview?.preferredDomain || 'N/A'}</p>
+                <p><strong>Year of Study:</strong> {selectedCandidate.candidate_overview?.yearOfStudy || 'N/A'}</p>
 
                 {/* Candidate Overview Summary */}
                 {selectedCandidate.candidate_overview?.summary && (
