@@ -354,7 +354,7 @@ router.get("/check_session/:sessionId", async (req, res) => {
 
 router.post("/create-report", async (req, res) => {
   try {
-    const { sessionId, interviewerId, name, email } = req.body;
+    const { sessionId, interviewerId, name, email, preferredDomain, yearOfStudy } = req.body;
 
     // if (!sessionId || !interviewerId  || !email) {
     //   return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -367,6 +367,8 @@ router.post("/create-report", async (req, res) => {
       candidate_overview: {
         name,
         email,
+        preferredDomain,
+        yearOfStudy
         
       }
     });
