@@ -150,6 +150,3 @@ http://localhost:3001
 This project is intended for educational and professional use.
 All rights reserved.
 
----
-## Team: SuPrazo Technologies
-< Coded By Suhen.M.G And Sanjana.M.Patil />
