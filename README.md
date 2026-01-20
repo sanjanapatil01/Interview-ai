@@ -145,8 +145,3 @@ http://localhost:3001
 
 ---
 
-## License
-
-This project is intended for educational and professional use.
-All rights reserved.
-
