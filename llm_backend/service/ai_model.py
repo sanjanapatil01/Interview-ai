@@ -14,7 +14,7 @@ from openai import OpenAI
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Global Mistral LLM (lazy loaded from previous fix)
-from .llama_models import get_llm  # Assuming you have the fixed model loader
+from service.llm_model import get_llm  # Remove . prefix
 
 def evaluate_answer(question: str, answer: str, max_questions: int, current_index: int) -> Dict[str, Any]:
     """Evaluate candidate answer and suggest next question"""
