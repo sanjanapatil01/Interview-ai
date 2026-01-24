@@ -1,0 +1,90 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Runtime data
+db.sqlite3
+*.db
+interview.db
+interview_dev.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+*.egg-info/
+dist/
+build/
+
+# Development data
+data/
+data/*
+!/data/.gitkeep
+
+# Model files (4GB+)
+models/
+models/*
+!models/.gitkeep
+*.gguf
+
+# Uploads (user resumes)
+uploads/
+uploads/*
+!uploads/.gitkeep
+
+# Migrations (Flask-Migrate)
+migrations/
+
+# Testing
+htmlcov/
+.coverage
+.pytest_cache/
+coverage.xml
+noxfile.py
+tox.ini
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# MacOS
+._*
