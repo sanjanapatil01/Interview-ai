@@ -1,7 +1,7 @@
 import os
 import json
 import redis
-import time  # ← ADD THIS MISSING IMPORT
+import time  # Fixed import
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -14,7 +14,7 @@ from service.ai_model import generate_final_report
 from models import db, Candidate, FinalReport
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()  # Fixed typo (removed 's')
 
 # Upstash Redis client (replaces localhost Redis)
 def get_redis_client():
@@ -53,7 +53,6 @@ def get_redis_client():
     
     return MockRedis()
 
-
 r = get_redis_client()
 
 def create_app():
@@ -64,9 +63,15 @@ def create_app():
     config_class = ProductionConfig if env == 'production' else DevelopmentConfig
     app.config.from_object(config_class)
     
+    # 🔥 FULL CORS FIX
+    CORS(app, resources={r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }})
+    
     # Initialize extensions
     db.init_app(app)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
     
     # Redis-backed sessions
     app.config['SESSION_TYPE'] = 'filesystem'  # Fallback
@@ -79,6 +84,14 @@ def create_app():
     with app.app_context():
         if not env == 'production':
             db.create_all()
+    
+    # 🔥 CORS AFTER-REQUEST FIX
+    @app.after_request
+    def after_request(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS,PUT,DELETE'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        return response
     
     return app
 
@@ -150,8 +163,12 @@ def start_interview():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/flask/submit_answer/<int:user_id>', methods=['POST'])
+# 🔥 FIXED: Support both POST + OPTIONS
+@app.route('/api/flask/submit_answer/<int:user_id>', methods=['POST', 'OPTIONS'])
 def submit_answer(user_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     try:
         data = request.get_json()
         session_id = data.get('session_id')
