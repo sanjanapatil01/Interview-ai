@@ -1,6 +1,7 @@
 import os
 import json
 import redis
+import time  # ← ADD THIS MISSING IMPORT
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -50,6 +51,7 @@ def create_app():
     
     return app
 
+# 🔥 GUNICORN NEEDS THIS AT MODULE LEVEL:
 app = create_app()
 
 def save_resume_file(file):
@@ -62,6 +64,11 @@ def save_resume_file(file):
     file_path = os.path.join(upload_dir, safe_filename)
     file.save(file_path)
     return file_path
+
+@app.route('/')
+def health_check():
+    """Health check for Render"""
+    return jsonify({"status": "Interview AI Backend LIVE!", "version": "1.0.0"})
 
 @app.route('/api/flask/upload_resume', methods=['POST'])
 def upload_resume():
