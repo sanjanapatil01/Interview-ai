@@ -8,6 +8,7 @@ import docx
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
+import json
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
