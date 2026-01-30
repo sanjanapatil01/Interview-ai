@@ -192,6 +192,7 @@ import logging
 import os  # ← THIS WAS MISSING!
 from typing import Dict, Any, Tuple
 from service.ai_model import evaluate_answer, get_openai_client
+from service.llm_model import dynamic_questions_gen_model
 
 # Production logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -250,59 +251,32 @@ def start_interview_session(user_id):
     r.expire(session_id, 86400)
     return session_id, first_question
 
-def handle_interview_session(session_id, answer, resume_data=""):
-    """Handle answer → AI evaluate → next question"""
+def handle_interview_session(session_id, answer,resume_data):
     data = r.get(session_id)
     if not data:
         return {"error": "Session not found."}
-    
     session = json.loads(data)
-    current_idx = session['question_no'] - 1
-    
-    # Store answer
-    session['data'][current_idx]['answer'] = answer
-    session['data'][current_idx]['timestamp'] = time.time()
-    
-    # AI Evaluation + Next question (OpenAI only ✅)
-    current_question = session['data'][current_idx]['question']
-    evaluation = evaluate_answer(
-        question=current_question,
-        answer=answer,
-        max_questions=session['max_questions'],
-        current_index=current_idx
-    )
-    session['data'][current_idx]['evaluation'] = evaluation['evaluation']
-    
-    # Check completion
-    if session['question_no'] >= session['max_questions']:
-        session['end_time'] = time.time()
-        r.set(session_id, json.dumps(session))
-        return {
-            "next_question": None,
-            "stop": True,
-            "total_questions": session['question_no']
-        }
-    
-    # Next question from OpenAI evaluation
-    next_question = evaluation['next_question']['question']
-    
-    # Add new question
+    current_question=session['question_no']
+    session['data'][current_question-1]['answer']=answer
+    next_question=dynamic_questions_gen_model(resume_data,session,answer)
+    print(f"Next question generated: {next_question}")
     session['data'].append({
-        'question': next_question,
-        'answer': None,
-        'timestamp': time.time(),
-        'evaluation': None
+        'question':next_question,
+        'answer':None
     })
-    session['question_no'] += 1
-    
+    session['question_no']=current_question+1
+    print(f'This is the session:{session}')
     r.set(session_id, json.dumps(session))
     r.expire(session_id, 86400)
-    
+    if session['question_no'] >= 3:
+        return {
+            "next_question": None,
+            "stop": True
+        }
+
     return {
         "next_question": next_question,
-        "stop": False,
-        "question_number": session['question_no'],
-        "score": evaluation['evaluation']['score']
+        "stop": False
     }
 
 def get_session_report(session_id):
