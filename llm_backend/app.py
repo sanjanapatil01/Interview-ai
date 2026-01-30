@@ -9,17 +9,55 @@ from models import db
 from config import DevelopmentConfig
 from models import Candidate, FinalReport
 import redis
+import logging
+
 from flask_migrate import Migrate
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class SimpleRedis:
+    def __init__(self): 
+        self.data = {}
+    def get(self, key): 
+        return self.data.get(key)
+    def set(self, key, value, ex=None): 
+        self.data[key] = value
+        return True
+    def delete(self, key): 
+        self.data.pop(key, None)
+        return True
+    def expire(self, key, seconds): 
+        return True
+    def ping(self): 
+        return True
 
 # 🔥 RENDER READY - Use ENV vars
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-r = redis.from_url(REDIS_URL, decode_responses=True)
+try:
+    if os.getenv('UPSTASH_REDIS_REST_URL'):
+        from upstash_redis import Redis
+        r = Redis(url=os.getenv('UPSTASH_REDIS_REST_URL'), token=os.getenv('UPSTASH_REDIS_REST_TOKEN'))
+        r.ping()
+        logger.info("✅ Upstash Redis connected")
+    else:
+        r = SimpleRedis()
+        logger.info("✅ Local Redis active")
+except Exception as e:
+    r = SimpleRedis()
+    logger.info(f"✅ Simple Redis fallback: {e}")
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, resources={r"/api/flask/*": {"origins": "*"}})
-    app.config.from_object(DevelopmentConfig)
     
+    # 🔥 PRODUCTION CORS - Allows localhost:3001 + ALL origins
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": ["http://localhost:3001", "http://localhost:3000", "*"],
+            "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
+    
+    app.config.from_object(DevelopmentConfig)
     db.init_app(app)
     migrate = Migrate(app, db)
     return app
