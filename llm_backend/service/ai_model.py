@@ -4,12 +4,6 @@ import json
 import re
 from dotenv import load_dotenv
 
-# 🔥 CRITICAL: Clear ALL proxies FIRST
-for key in list(os.environ):
-    if 'proxy' in key.lower():
-        os.environ.pop(key, None)
-
-os.environ['NO_PROXY'] = 'api.openai.com,*.openai.com'
 load_dotenv()
 
 _client = None
@@ -20,21 +14,27 @@ def get_openai_client():
         api_key = os.getenv('OPENAI_API_KEY')
         if api_key:
             try:
-                from openai import OpenAI
-                # 🔥 FORCE no proxies via http_client
+                # 🔥 MONKEY PATCH - Disable ALL proxy detection globally
                 import httpx
-                _client = OpenAI(
-                    api_key=api_key,
-                    http_client=httpx.Client(proxies={})
-                )
-                print("✅ OpenAI client ready - PRODUCTION")
+                original_init = httpx.Client.__init__
+                
+                def no_proxy_init(self, *args, **kwargs):
+                    kwargs['proxies'] = None
+                    return original_init(self, *args, **kwargs)
+                
+                httpx.Client.__init__ = no_proxy_init
+                
+                from openai import OpenAI
+                _client = OpenAI(api_key=api_key)
+                print("✅ OpenAI client ready - PROXY BYPASS")
                 return _client
+                
             except Exception as e:
-                print(f"❌ OpenAI init failed: {e}")
+                print(f"❌ OpenAI failed: {e}")
                 _client = None
     return _client
 
-# [Keep all your existing functions exactly the same]
+# Keep ALL your existing functions IDENTICAL
 
 def evaluate_answer(question, answer, max_questions, current_index):
     client = get_openai_client()
