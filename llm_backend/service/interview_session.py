@@ -227,8 +227,10 @@ except Exception as e:
     r = SimpleRedis()
     logger.info(f"✅ Simple Redis fallback: {e}")
 
-def start_interview_session(user_id: int) -> Tuple[str, str]:
-    """Start new interview session"""
+
+
+def start_interview_session(user_id):
+    """Start interview with first question"""
     session_id = str(uuid.uuid4())
     first_question = "Tell me about yourself and your technical background."
     
@@ -236,7 +238,6 @@ def start_interview_session(user_id: int) -> Tuple[str, str]:
         "user_id": user_id,
         "question_no": 1,
         "max_questions": 8,
-        "start_time": time.time(),
         "data": [{
             'question': first_question,
             'answer': None,
@@ -246,123 +247,82 @@ def start_interview_session(user_id: int) -> Tuple[str, str]:
     }
     
     r.set(session_id, json.dumps(session_data))
-    logger.info(f"✅ Started session {session_id} for user {user_id}")
+    r.expire(session_id, 86400)
     return session_id, first_question
 
-def handle_interview_session(session_id: str, answer: str, resume_data: str = "") -> Dict[str, Any]:
+def handle_interview_session(session_id, answer, resume_data=""):
     """Handle answer → AI evaluate → next question"""
-    # Get session
-    session_data = r.get(session_id)
-    if not session_data:
-        logger.error(f"❌ Session {session_id} not found")
-        return {"error": "Session expired"}
+    data = r.get(session_id)
+    if not data:
+        return {"error": "Session not found."}
     
-    try:
-        session = json.loads(session_data)
-    except:
-        return {"error": "Invalid session data"}
-    
+    session = json.loads(data)
     current_idx = session['question_no'] - 1
-    max_questions = session.get('max_questions', 8)
     
     # Store answer
     session['data'][current_idx]['answer'] = answer
     session['data'][current_idx]['timestamp'] = time.time()
     
-    # AI Evaluation + Next question
+    # AI Evaluation + Next question (OpenAI only ✅)
     current_question = session['data'][current_idx]['question']
-    try:
-        evaluation = evaluate_answer(
-            question=current_question,
-            answer=answer,
-            max_questions=max_questions,
-            current_index=current_idx
-        )
-        session['data'][current_idx]['evaluation'] = evaluation['evaluation']
-    except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
-        evaluation = {
-            "evaluation": {"score": 7, "feedback": "Good response"},
-            "next_question": {"question": "Tell me about a challenging project.", "type": "Technical"},
-            "stop": False
-        }
-        session['data'][current_idx]['evaluation'] = evaluation['evaluation']
+    evaluation = evaluate_answer(
+        question=current_question,
+        answer=answer,
+        max_questions=session['max_questions'],
+        current_index=current_idx
+    )
+    session['data'][current_idx]['evaluation'] = evaluation['evaluation']
     
-    # Check if complete
-    if session['question_no'] >= max_questions:
+    # Check completion
+    if session['question_no'] >= session['max_questions']:
         session['end_time'] = time.time()
         r.set(session_id, json.dumps(session))
-        logger.info(f"✅ Interview COMPLETE: {session_id}")
         return {
             "next_question": None,
             "stop": True,
-            "total_questions": session['question_no'],
-            "avg_score": sum([q.get('evaluation', {}).get('score', 5) for q in session['data']]) / len(session['data'])
+            "total_questions": session['question_no']
         }
     
-    # Next question from AI evaluation
+    # Next question from OpenAI evaluation
     next_question = evaluation['next_question']['question']
     
-    # Add new question entry
-    new_entry = {
+    # Add new question
+    session['data'].append({
         'question': next_question,
         'answer': None,
         'timestamp': time.time(),
         'evaluation': None
-    }
-    session['data'].append(new_entry)
+    })
     session['question_no'] += 1
     
     r.set(session_id, json.dumps(session))
-    logger.info(f"✅ Q{len(session['data'])}: {session_id}")
+    r.expire(session_id, 86400)
     
     return {
         "next_question": next_question,
         "stop": False,
         "question_number": session['question_no'],
-        "total_planned": max_questions,
-        "score": evaluation['evaluation']['score'],
-        "feedback": evaluation['evaluation']['feedback']
+        "score": evaluation['evaluation']['score']
     }
 
-def get_session_report(session_id: str) -> Dict[str, Any]:
-    """Get complete session report"""
-    session_data = r.get(session_id)
-    if not session_data:
-        return {"error": "Session not found"}
+def get_session_report(session_id):
+    """Get complete session data"""
+    data = r.get(session_id)
+    if not data:
+        return {"error": "Session not found."}
     
-    try:
-        session = json.loads(session_data)
-        return {
-            "user_id": session["user_id"],
-            "status": "completed" if session.get('end_time') else "active",
-            "total_questions": len(session["data"]),
-            "questions": [
-                {
-                    "question": q["question"],
-                    "answer": q.get("answer", "Not answered"),
-                    "score": q.get("evaluation", {}).get("score"),
-                    "feedback": q.get("evaluation", {}).get("feedback", "")
-                }
-                for q in session["data"]
-            ]
-        }
-    except:
-        return {"error": "Report generation failed"}
-
-def end_session(session_id: str) -> bool:
-    """Force end session"""
-    deleted = r.delete(session_id)
-    logger.info(f"Session {session_id} {'deleted' if deleted else 'not found'}")
-    return bool(deleted)
-
-if __name__ == "__main__":
-    # Test the complete flow
-    print("🧪 Testing AI Interviewer...")
-    sid, q1 = start_interview_session(123)
-    print(f"✅ Session: {sid[:8]}...")
-    print(f"✅ Q1: {q1}")
-    
-    result = handle_interview_session(sid, "I'm a 3rd year CS student skilled in MERN stack and ML.", "")
-    print(f"✅ Q2: {result['next_question'][:50]}...")
-    print("🎉 AI INTERVIEWER = PRODUCTION READY!")
+    session = json.loads(data)
+    return {
+        "status": "completed" if session.get('end_time') else "active",
+        "user_id": session["user_id"],
+        "total_questions": len(session["data"]),
+        "questions": [
+            {
+                "question": q["question"],
+                "answer": q.get("answer", "Not answered"),
+                "score": q.get("evaluation", {}).get("score"),
+                "feedback": q.get("evaluation", {}).get("feedback", "")
+            }
+            for q in session["data"]
+        ]
+    }

@@ -125,76 +125,70 @@
 #     parsed = json.loads(json_str[start:end])
     
 #     return parsed
-import os
+from openai import OpenAI
 import json
-from typing import Dict, Any
+import os
 
-_openai_client = None
+client = OpenAI(
+    api_key=os.getenv('OPENAI_API_KEY')
+)
 
-def get_openai_client():
-    global _openai_client
-    if _openai_client is None:
-        api_key = os.getenv('OPENAI_API_KEY')
-        if api_key:
-            from openai import OpenAI
-            _openai_client = OpenAI(api_key=api_key)
-    return _openai_client
-
-def get_llm():
-    """OpenAI GPT-4o-mini as Mistral replacement"""
-    client = get_openai_client()
-    if not client:
-        raise Exception("OpenAI API key missing")
-    return client
-
-def dynamic_questions_gen_model(resume_data: str, history: list, last_answer: str) -> str:
-    client = get_llm()
+def dynamic_questions_gen_model(resume_data, history, last_answer):
+    """Generate next interview question using OpenAI"""
     
     prompt = f"""
-    You are continuing a professional job interview. Expert HR + Technical interviewer.
-    
-    Resume: {resume_data}
-    Last 5 exchanges: {json.dumps(history[-5:], indent=2)}
-    Candidate's last answer: "{last_answer}"
-    
-    NEXT QUESTION LOGIC:
-    1. TECHNICAL DRILL-DOWN on last_answer details
-    2. UNCOVERED RESUME SKILLS  
-    3. BEHAVIORAL/HR questions
-    4. TERMINATE after 5-7 questions
-    
-    Return ONLY JSON:
-    {{"action": "ask", "question": "Single hard question"}} 
-    OR 
-    {{"action": "terminate", "reason": "Interview complete"}}
-    """
+You are continuing a professional job interview as an expert HR and Technical interviewer.
+
+# Resume Data:
+{resume_data}
+
+# Candidate's Last Answer:
+{last_answer}
+
+# TASK: Generate EXACTLY ONE follow-up question following these rules:
+1. **Drill-Down (Priority 1):** If candidate mentioned specific tech/project, ask HARD follow-up about that detail
+2. **Topic Rotation (Priority 2):** Switch to uncovered resume skill (Technical > HR > General)
+3. **Terminate if complete:** Output {{"terminate": true}} if fully assessed
+
+Return ONLY JSON:
+{{
+  "question": "Single generated question text"
+}}
+OR
+{{
+  "terminate": true
+}}
+"""
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_tokens=200
+        temperature=0.3,
+        max_tokens=150
     )
     
-    result = json.loads(response.choices[0].message.content)
-    return result["question"] if result["action"] == "ask" else None
-
-def generate_initial_questions(resume_data: str) -> Dict[str, Any]:
-    client = get_llm()
+    content = response.choices[0].message.content.strip()
     
-    prompt = f"""
-    Based on resume: {resume_data}
-    
-    Generate EXACTLY 3 hard technical + 1 behavioral question.
-    
-    JSON format:
-    {{"technical": ["Q1", "Q2", "Q3"], "hr": ["Behavioral question"]}}
-    """
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini", 
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1
-    )
-    
-    return json.loads(response.choices[0].message.content)
+    try:
+        parsed = json.loads(content)
+        
+        # Handle terminate case
+        if parsed.get("terminate"):
+            return None  # Signals end of interview
+            
+        # Return question
+        if "question" in parsed:
+            return parsed["question"]
+            
+        raise ValueError("Invalid JSON format")
+        
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"JSON parse error: {e}")
+        # Fallback questions based on history length
+        fallbacks = [
+            "Explain your MERN stack project architecture.",
+            "Describe a challenging bug you debugged.",
+            "How do you optimize React performance?",
+            "Tell me about a team conflict you resolved."
+        ]
+        return fallbacks[len(history) % len(fallbacks)]
