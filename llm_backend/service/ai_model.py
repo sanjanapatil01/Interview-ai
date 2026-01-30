@@ -1,16 +1,17 @@
-from openai import OpenAI
+
 import os
+
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None) 
+os.environ['NO_PROXY'] = 'api.openai.com,.openai.com'
+from openai import OpenAI
 import json
 import re
 from dotenv import load_dotenv
 
 # 🔥 DISABLE Render proxies BEFORE OpenAI import
-os.environ['HTTP_PROXY'] = ''
-os.environ['HTTPS_PROXY'] = ''
-os.environ['NO_PROXY'] = 'api.openai.com'
 
-from openai import OpenAI
-# Now OpenAI works perfectly!
+
 
 
 load_dotenv()
@@ -21,6 +22,10 @@ _client = None
 def get_openai_client():
     global _client
     if _client is None:
+        
+        os.environ.pop('HTTP_PROXY', None)
+        os.environ.pop('HTTPS_PROXY', None) 
+        os.environ['NO_PROXY'] = 'api.openai.com,.openai.com'
         api_key = os.getenv('OPENAI_API_KEY')
         if api_key:
             try:
