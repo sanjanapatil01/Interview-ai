@@ -4,6 +4,15 @@ import json
 import re
 from dotenv import load_dotenv
 
+# 🔥 DISABLE Render proxies BEFORE OpenAI import
+os.environ['HTTP_PROXY'] = ''
+os.environ['HTTPS_PROXY'] = ''
+os.environ['NO_PROXY'] = 'api.openai.com'
+
+from openai import OpenAI
+# Now OpenAI works perfectly!
+
+
 load_dotenv()
 
 # 🔥 LAZY LOADING - FIXES Render startup crash
