@@ -1,40 +1,40 @@
 
 import os
-
-os.environ.pop('HTTP_PROXY', None)
-os.environ.pop('HTTPS_PROXY', None) 
-os.environ['NO_PROXY'] = 'api.openai.com,.openai.com'
-from openai import OpenAI
 import json
 import re
 from dotenv import load_dotenv
 
-# 🔥 DISABLE Render proxies BEFORE OpenAI import
+# 🔥 CRITICAL: Clear ALL proxies FIRST
+for key in list(os.environ):
+    if 'proxy' in key.lower():
+        os.environ.pop(key, None)
 
-
-
-
+os.environ['NO_PROXY'] = 'api.openai.com,*.openai.com'
 load_dotenv()
 
-# 🔥 LAZY LOADING - FIXES Render startup crash
 _client = None
 
 def get_openai_client():
     global _client
     if _client is None:
-        
-        os.environ.pop('HTTP_PROXY', None)
-        os.environ.pop('HTTPS_PROXY', None) 
-        os.environ['NO_PROXY'] = 'api.openai.com,.openai.com'
         api_key = os.getenv('OPENAI_API_KEY')
         if api_key:
             try:
                 from openai import OpenAI
-                _client = OpenAI(api_key=api_key)
-                print("✅ OpenAI client ready")
+                # 🔥 FORCE no proxies via http_client
+                import httpx
+                _client = OpenAI(
+                    api_key=api_key,
+                    http_client=httpx.Client(proxies={})
+                )
+                print("✅ OpenAI client ready - PRODUCTION")
+                return _client
             except Exception as e:
                 print(f"❌ OpenAI init failed: {e}")
+                _client = None
     return _client
+
+# [Keep all your existing functions exactly the same]
 
 def evaluate_answer(question, answer, max_questions, current_index):
     client = get_openai_client()
