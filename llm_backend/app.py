@@ -6,9 +6,7 @@ import uuid
 from service.resume_parser import extract_text
 from service.interview_session import start_interview_session, handle_interview_session
 from service.ai_model import generate_final_report
-import redis
 import logging
-import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -28,7 +26,13 @@ class SimpleRedis:
         return True
     def ping(self): 
         return True
-    def hset(self, key, mapping):
+    # 🔥 FIX: Upstash Redis hset compatibility
+    def hset(self, key, field, value):
+        if key not in self.data:
+            self.data[key] = {}
+        self.data[key][field] = value
+        return 1
+    def hset_mapping(self, key, mapping):
         if key not in self.data:
             self.data[key] = {}
         self.data[key].update(mapping)
@@ -36,7 +40,7 @@ class SimpleRedis:
     def hgetall(self, key):
         return self.data.get(key, {})
 
-# 🔥 RENDER READY Redis
+# 🔥 Redis - Upstash + Fallback
 try:
     if os.getenv('UPSTASH_REDIS_REST_URL'):
         from upstash_redis import Redis
@@ -62,18 +66,21 @@ def save_resume_file(file):
 
 @app.route('/', methods=['GET'])
 def health():
-    return jsonify({"status": "AI Interviewer LIVE!", "redis": "connected"})
+    return jsonify({"status": "AI Interviewer LIVE!"})
 
 @app.route('/api/flask/upload_resume', methods=['POST'])
 def upload_resume():
-    file = request.files['resume']
-    name = request.form['name']
-    email = request.form['email']
+    try:
+        file = request.files['resume']
+        name = request.form['name']
+        email = request.form['email']
+    except:
+        return jsonify({"error": "Missing file or form data"}), 400
 
     file_path = save_resume_file(file)
     resume_text = extract_text(file_path)
     
-    # 🔥 NO DATABASE - Store in Redis
+    # 🔥 FIXED: Use hset_mapping for compatibility
     user_id = str(uuid.uuid4())[:8]
     user_data = {
         "name": name,
@@ -81,7 +88,10 @@ def upload_resume():
         "resume_text": resume_text,
         "resume_path": file_path
     }
-    r.hset(f"user:{user_id}", mapping=user_data)
+    
+    # Upstash Redis uses hset(key, field, value) - not mapping
+    for field, value in user_data.items():
+        r.hset(f"user:{user_id}", field, value)
     r.expire(f"user:{user_id}", 86400 * 7)
 
     return jsonify({
@@ -92,8 +102,8 @@ def upload_resume():
 @app.route('/api/flask/start_interview', methods=['POST'])
 def start_interview():
     user_id = request.json.get('user_id')
-    
     user_data = r.hgetall(f"user:{user_id}")
+    
     if not user_data:
         return jsonify({"error": "User not found"}), 404
 
@@ -123,7 +133,7 @@ def submit_answer(user_id):
             session = json.loads(session_data)
             final_report_data = generate_final_report(session)
             
-            # Store report in Redis
+            # Store report with user_id
             report_key = f"report:{user_id}"
             r.setex(report_key, 86400, json.dumps(final_report_data))
             r.delete(session_id)
@@ -153,7 +163,6 @@ def get_report(user_id):
         "report_text": json.loads(report)
     })
 
-# 🔥 RENDER PORT BINDING - FIXED
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
