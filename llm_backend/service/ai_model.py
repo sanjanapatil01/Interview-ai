@@ -1,4 +1,3 @@
-
 import os
 import json
 import re
@@ -9,44 +8,36 @@ load_dotenv()
 _client = None
 
 def get_openai_client():
+    """
+    Initialize and cache the OpenAI client safely.
+    No monkey patching of httpx is needed.
+    """
     global _client
     if _client is None:
         api_key = os.getenv('OPENAI_API_KEY')
         if api_key:
             try:
-                # 🔥 MONKEY PATCH - Disable ALL proxy detection globally
-                import httpx
-                original_init = httpx.Client.__init__
-                
-                def no_proxy_init(self, *args, **kwargs):
-                    kwargs['proxies'] = None
-                    return original_init(self, *args, **kwargs)
-                
-                httpx.Client.__init__ = no_proxy_init
-                
                 from openai import OpenAI
                 _client = OpenAI(api_key=api_key)
-                print("✅ OpenAI client ready - PROXY BYPASS")
+                print("✅ OpenAI client ready")
                 return _client
-                
             except Exception as e:
                 print(f"❌ OpenAI failed: {e}")
                 _client = None
     return _client
 
-# Keep ALL your existing functions IDENTICAL
 
 def evaluate_answer(question, answer, max_questions, current_index):
     client = get_openai_client()
-    
-    # ✅ FALLBACK if OpenAI fails
+
+    # ✅ FALLBACK if OpenAI fails or interview is complete
     if not client or current_index + 1 >= max_questions:
         return {
             "evaluation": {"score": 7, "feedback": "Interview completed successfully"},
             "next_question": {"question": "Thank you! Generating your report...", "type": "Final"},
             "stop": True
         }
-    
+
     prompt = f"""
 You are a technical interviewer. Score this answer 0-10 + next question.
 
@@ -60,7 +51,7 @@ Return JSON only:
   "stop": false
 }}
 """
-    
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -79,10 +70,11 @@ Return JSON only:
             "stop": False
         }
 
+
 def generate_final_report(candidate_session_data):
     """✅ PRODUCTION READY HIRE/NO-HIRE REPORT"""
     client = get_openai_client()
-    
+
     if not client:
         # ✅ OFFLINE FALLBACK REPORT
         return {
@@ -102,7 +94,7 @@ def generate_final_report(candidate_session_data):
                 "justification": "Demonstrated advanced technical capabilities"
             }
         }
-    
+
     prompt = f"""
 Generate professional HIRE/NO-HIRE report from this interview data:
 
@@ -116,7 +108,7 @@ JSON structure only - no other text:
   "final_recommendation": {{"decision": "Hire", "justification": "reason"}}
 }}
 """
-    
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -124,13 +116,14 @@ JSON structure only - no other text:
             temperature=0.1,
             max_tokens=1000
         )
-        
+
         content = response.choices[0].message.content.strip()
         content = re.sub(r'^```json|```$', '', content, flags=re.MULTILINE).strip()
-        
+
         report = json.loads(content)
         return report
-    except:
+    except Exception as e:
+        print(f"Report generation fallback: {e}")
         # ✅ BULLETPROOF FALLBACK
         return {
             "candidate_overview": {"name": "Sanja Patil", "summary": "CS Student | MERN+ML"},
@@ -139,11 +132,12 @@ JSON structure only - no other text:
             "final_recommendation": {"decision": "STRONG HIRE", "justification": "Production-ready full-stack AI engineer"}
         }
 
+
 def clean_report(raw_data):
-    """Clean markdown report sections"""
+    """Clean markdown report sections into a dictionary"""
     sections = re.split(r'\n## ', raw_data)
     report_dict = {}
-    
+
     for sec in sections:
         if sec.strip():
             lines = sec.strip().split('\n', 1)
