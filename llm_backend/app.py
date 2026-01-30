@@ -2,16 +2,14 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
 import json
-from service.resume_parser import parse_resume12, extract_text
-from service.interview_session import start_interview_session, handle_interview_session, get_session_report
+import uuid
+from service.resume_parser import extract_text
+from service.interview_session import start_interview_session, handle_interview_session
 from service.ai_model import generate_final_report
-from models import db
-from config import DevelopmentConfig
-from models import Candidate, FinalReport
 import redis
 import logging
+import os
 
-from flask_migrate import Migrate
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -30,8 +28,15 @@ class SimpleRedis:
         return True
     def ping(self): 
         return True
+    def hset(self, key, mapping):
+        if key not in self.data:
+            self.data[key] = {}
+        self.data[key].update(mapping)
+        return True
+    def hgetall(self, key):
+        return self.data.get(key, {})
 
-# 🔥 RENDER READY - Use ENV vars
+# 🔥 RENDER READY Redis
 try:
     if os.getenv('UPSTASH_REDIS_REST_URL'):
         from upstash_redis import Redis
@@ -40,29 +45,13 @@ try:
         logger.info("✅ Upstash Redis connected")
     else:
         r = SimpleRedis()
-        logger.info("✅ Local Redis active")
-except Exception as e:
+        logger.info("✅ Simple Redis active")
+except:
     r = SimpleRedis()
-    logger.info(f"✅ Simple Redis fallback: {e}")
+    logger.info("✅ Simple Redis fallback")
 
-def create_app():
-    app = Flask(__name__)
-    
-    # 🔥 PRODUCTION CORS - Allows localhost:3001 + ALL origins
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:3001", "http://localhost:3000", "*"],
-            "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-            "allow_headers": ["Content-Type", "Authorization"]
-        }
-    })
-    
-    app.config.from_object(DevelopmentConfig)
-    db.init_app(app)
-    migrate = Migrate(app, db)
-    return app
-
-app = create_app()
+app = Flask(__name__)
+CORS(app, origins=["*"])
 
 def save_resume_file(file):
     upload_dir = "uploads/"
@@ -71,7 +60,7 @@ def save_resume_file(file):
     file.save(file_path)
     return file_path
 
-@app.route('/', methods=['GET'])  # 🔥 RENDER HEALTH CHECK
+@app.route('/', methods=['GET'])
 def health():
     return jsonify({"status": "AI Interviewer LIVE!", "redis": "connected"})
 
@@ -83,22 +72,29 @@ def upload_resume():
 
     file_path = save_resume_file(file)
     resume_text = extract_text(file_path)
-
-    user = Candidate(name=name, email=email, resume_text=resume_text, resume_path=file_path)
-    db.session.add(user)
-    db.session.commit()
+    
+    # 🔥 NO DATABASE - Store in Redis
+    user_id = str(uuid.uuid4())[:8]
+    user_data = {
+        "name": name,
+        "email": email,
+        "resume_text": resume_text,
+        "resume_path": file_path
+    }
+    r.hset(f"user:{user_id}", mapping=user_data)
+    r.expire(f"user:{user_id}", 86400 * 7)
 
     return jsonify({
-        "user_id": user.id,
+        "user_id": user_id,
         "message": "Resume uploaded successfully"
     })
 
 @app.route('/api/flask/start_interview', methods=['POST'])
 def start_interview():
     user_id = request.json.get('user_id')
-    user = Candidate.query.get(user_id)
-
-    if not user:
+    
+    user_data = r.hgetall(f"user:{user_id}")
+    if not user_data:
         return jsonify({"error": "User not found"}), 404
 
     session_id, first_question = start_interview_session(user_id)
@@ -116,52 +112,49 @@ def submit_answer(user_id):
     if not session_id or not answer:
         return jsonify({"error": "session_id and answer are required"}), 400
 
-    user = Candidate.query.get(user_id)
-    resume_data = user.resume_text if user else ""
+    user_data = r.hgetall(f"user:{user_id}")
+    resume_data = user_data.get('resume_text', '') if user_data else ""
 
     result = handle_interview_session(session_id, answer, resume_data)
-    print(f"Submit answer result: {result}")
 
     if result.get("stop"):
         session_data = r.get(session_id)
         if session_data:
             session = json.loads(session_data)
-            user_id = session['user_id']
             final_report_data = generate_final_report(session)
-
-            final_report_text = json.dumps(final_report_data) if isinstance(final_report_data, dict) else str(final_report_data)
             
-            report = FinalReport(user_id=user_id, report_text=final_report_text)
-            db.session.add(report)
-            db.session.commit()
-        
-        r.delete(session_id)
-        return jsonify({
-            "message": "Interview Finished!",
-            "final_report": final_report_data 
-        })
+            # Store report in Redis
+            report_key = f"report:{user_id}"
+            r.setex(report_key, 86400, json.dumps(final_report_data))
+            r.delete(session_id)
+            
+            return jsonify({
+                "message": "Interview Finished!",
+                "final_report": final_report_data,
+                "user_id": user_id
+            })
 
     return jsonify(result)
 
 @app.route('/api/flask/get_report/<int:user_id>', methods=['GET'])
 def get_report(user_id):
-    user = Candidate.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    report_key = f"report:{user_id}"
+    report = r.get(report_key)
     
-    report = FinalReport.query.filter_by(user_id=user_id).order_by(FinalReport.id.desc()).first()
     if not report:
         return jsonify({"error": "Report not found"}), 404
-
+    
+    user_data = r.hgetall(f"user:{user_id}")
+    
     return jsonify({
-        "user_id": user.id,
-        "name": user.name,
-        "email": user.email,
-        "report_text": json.loads(report.report_text)
+        "user_id": user_id,
+        "name": user_data.get('name', 'Unknown'),
+        "email": user_data.get('email', 'Unknown'),
+        "report_text": json.loads(report)
     })
 
-# 🔥 RENDER PORT BINDING
+# 🔥 RENDER PORT BINDING - FIXED
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    host = '0.0.0.0'  # REQUIRED for Render
+    host = '0.0.0.0'
     app.run(host=host, port=port, debug=False)
