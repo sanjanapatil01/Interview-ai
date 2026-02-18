@@ -1,21 +1,23 @@
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
-const User = require("../models/User"); // Ensure path to User model is correct
-const InterviewSchedule = require('../models/InterviewSchedule');
+import express from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+import User from "../models/User";
+import InterviewSchedule from "../models/InterviewSchedule";
+import FinalReport from "../models/FinalReport";
+import admin from "../config/firebaseAdmin.js";
+
+
 const router = express.Router();
 const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-const FinalReport = require("../models/FinalReport");
 
 
 // -------------------------------------------------------------------
 // 1. FIREBASE ADMIN SDK SETUP
 // CRITICAL: This allows the backend to interact with Firebase Auth (e.g., update password)
 // -------------------------------------------------------------------
-import admin from "../config/firebaseAdmin.js";
 
 // !! IMPORTANT: Ensure the path to your service account JSON file is correct !!
 // This file should be in the same directory as auth.js, or path adjusted (e.g., '../serviceAccount.json')
