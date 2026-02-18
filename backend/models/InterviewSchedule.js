@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 const interviewScheduleSchema = new mongoose.Schema({
     interviewerId: {
         type: mongoose.Schema.Types.ObjectId,
