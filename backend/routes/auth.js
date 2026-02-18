@@ -15,12 +15,10 @@ const FinalReport = require("../models/FinalReport");
 // 1. FIREBASE ADMIN SDK SETUP
 // CRITICAL: This allows the backend to interact with Firebase Auth (e.g., update password)
 // -------------------------------------------------------------------
-const admin = require('firebase-admin');
+import admin from "../config/firebaseAdmin.js";
+
 // !! IMPORTANT: Ensure the path to your service account JSON file is correct !!
 // This file should be in the same directory as auth.js, or path adjusted (e.g., '../serviceAccount.json')
-const serviceAccount = require("./interviewai-237e4-firebase-adminsdk-fbsvc-a57c0a1336.json"); 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-// -------------------------------------------------------------------
 
 
 // -------------------------------------------------------------------
