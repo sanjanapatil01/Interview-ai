@@ -2,9 +2,9 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
-import User from "../models/User";
-import InterviewSchedule from "../models/InterviewSchedule";
-import FinalReport from "../models/FinalReport";
+import User from "../models/User.js";
+import InterviewSchedule from "../models/InterviewSchedule.js";
+import FinalReport from "../models/FinalReport.js";
 import admin from "../config/firebaseAdmin.js";
 
 
