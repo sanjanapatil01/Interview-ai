@@ -108,4 +108,4 @@ FinalReportSchema.pre('findOneAndUpdate', function(next) {
   next();
 });
 
-module.exports = mongoose.model("FinalReport", FinalReportSchema);
+export default mongoose.model("FinalReport", FinalReportSchema);
