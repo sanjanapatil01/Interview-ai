@@ -405,12 +405,12 @@ router.put("/update-report/:reportId", async (req, res) => {
       strengths: payload.strengths,
       weaknesses: payload.weaknesses,
       // Support both capitalized and lowercase section keys from frontend
-      "section_wise_evaluation.hr.score": payload.section_wise_evaluation?.HR?.average_score ?? payload.section_wise_evaluation?.hr?.average_score,
-      "section_wise_evaluation.hr.feedback": payload.section_wise_evaluation?.HR?.feedback ?? payload.section_wise_evaluation?.hr?.feedback,
-      "section_wise_evaluation.general.score": payload.section_wise_evaluation?.General?.average_score ?? payload.section_wise_evaluation?.general?.average_score,
-      "section_wise_evaluation.general.feedback": payload.section_wise_evaluation?.General?.feedback ?? payload.section_wise_evaluation?.general?.feedback,
-      "section_wise_evaluation.technical.score": payload.section_wise_evaluation?.Technical?.average_score ?? payload.section_wise_evaluation?.technical?.average_score,
-      "section_wise_evaluation.technical.feedback": payload.section_wise_evaluation?.Technical?.feedback ?? payload.section_wise_evaluation?.technical?.feedback,
+      "section_wise_evaluation.hr.score": payload.section_wise_evaluation?.HR?.average_score ?? payload.section_wise_evaluation?.HR?.average_score,
+      "section_wise_evaluation.hr.feedback": payload.section_wise_evaluation?.HR?.feedback ?? payload.section_wise_evaluation?.HR?.feedback,
+      "section_wise_evaluation.general.score": payload.section_wise_evaluation?.General?.average_score ?? payload.section_wise_evaluation?.General?.average_score,
+      "section_wise_evaluation.general.feedback": payload.section_wise_evaluation?.General?.feedback ?? payload.section_wise_evaluation?.General?.feedback,
+      "section_wise_evaluation.technical.score": payload.section_wise_evaluation?.Technical?.average_score ?? payload.section_wise_evaluation?.Technical?.average_score,
+      "section_wise_evaluation.technical.feedback": payload.section_wise_evaluation?.Technical?.feedback ?? payload.section_wise_evaluation?.Technical?.feedback,
       "final_recommendation.decision": payload.final_recommendation?.decision,
       "final_recommendation.justification": payload.final_recommendation?.justification
     };

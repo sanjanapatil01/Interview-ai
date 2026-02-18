@@ -131,15 +131,17 @@ const StartInterview = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const userId = location.state?.userId;
+  const candidateId = location.state?.candidateId; // Adjusted to match the new naming from UserForm
+  const resumeId = location.state?.resumeId;
   const reportId  = location.state?.reportId;
+  const role = location.state?.role;
 
   console.log('reportId in StartInterview:', reportId);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const handleStartInterview = async () => {
-    if (!userId) {
+    if (!candidateId) {
       setError("User ID not found. Please go back and re-upload your resume.");
       return;
     }
@@ -153,10 +155,17 @@ const StartInterview = () => {
       stream.getTracks().forEach(track => track.stop()); // stop preview immediately
 
       //  Proceed with backend API call
-      const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/start_interview`, {
+      const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/api/interviews/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-KEY': process.env.REACT_APP_FLASK_API_KEY
+        },
+        body: JSON.stringify({ 
+          candidate_id: candidateId,
+          resume_id: resumeId,
+          role: role
+        }),
       });
 
       if (!response.ok) {
@@ -169,9 +178,9 @@ const StartInterview = () => {
 
       navigate('/interviewroom', {
         state: {
-          sessionId: data.session_id,
-          firstQuestion: data.first_question,
-          userId: userId,
+          interviewId: data.interview_id,
+          firstQuestion: data.question,
+          resumeId: resumeId,
           reportId: reportId,
         },
       });

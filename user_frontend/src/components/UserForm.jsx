@@ -117,13 +117,14 @@ const uploadResume = async () => {
   setIsLoading(true);
   try {
     const formData = new FormData();
-    formData.append('resume', form.resume);
+    formData.append('file', form.resume);
     formData.append('name', form.username);
     formData.append('email', form.email);
     
 
-    const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/upload_resume`, {
+    const response = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/api/resumes/upload`, {
       method: 'POST',
+      headers:{'X-API-KEY':process.env.REACT_APP_FLASK_API_KEY},
       body: formData,
     });
 
@@ -133,13 +134,12 @@ const uploadResume = async () => {
       throw new Error(result.message || `Upload failed (${response.status})`);
     }
 
-    const userIdFromUpload = result.user_id || result.id || result.userId;
-    console.log('Resume uploaded, userId:', userIdFromUpload);
+   const userIdFromUpload = result.candidate_id;
 
     //  NOW call createReport with userId
-    const reportResult = await createReport(sessionId, userIdFromUpload, form.email, form.username);
+    const reportResult = await createReport(sessionId, result.candidate_id, form.email, form.username);
     if (reportResult.success) {
-      navigate('/startinterview', { state: { userId: userIdFromUpload,reportId:reportResult.data.reportId } });
+      navigate('/startinterview', { state: { candidateId: result.candidate_id,resumeId:result.resume_id,reportId:reportResult.data.reportId ,role:form.preferredDomain} });
       return;
     }
     console.log('reportResult',reportResult.data.reportId);

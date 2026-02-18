@@ -7,16 +7,17 @@ import './userRoom.css';
 
 const UserInterviewRoom = () => {
   const location = useLocation();
-  const reportId=location.state?.reportId;
-  console.log('reportId',reportId)
+ 
 
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [timer, setTimer] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Preparing your interview...');
   const [aiQuestion, setAiQuestion] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
-  const [sessionId, setSessionId] = useState(null);
-  const [userId, setUserId] = useState(null);
+  const [interviewId, setInterviewId] = useState(null);
+  const [candidateId, setCandidateId] = useState(null);
+  const [resumeId, setResumeId] = useState(null);
+  const [reportId, setReportId] = useState(null);
   const [micError, setMicError] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -43,9 +44,11 @@ const UserInterviewRoom = () => {
   // extract navigation state
   useEffect(() => {
     if (location?.state) {
-      const { sessionId: sId, userId: uId, firstQuestion } = location.state;
-      setSessionId(sId || null);
-      setUserId(uId || null);
+      const { candidateId:candidateId,interviewId:interviewId,firstQuestion:firstQuestion,resumeId:resumeId,reportId:reportId } = location.state;
+      setInterviewId(interviewId || null);
+      setCandidateId(candidateId || null);
+      setResumeId(resumeId || null);
+      setReportId(reportId || null);
       if (firstQuestion) setAiQuestion(firstQuestion);
     }
   }, [location]);
@@ -353,10 +356,10 @@ const UserInterviewRoom = () => {
   // submit to backend
   const submitAnswer = async (answer) => {
     try {
-      const payload = { session_id: sessionId, answer, user_id: userId };
-      const res = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/submit_answer/${userId}`, {
+      const payload = {interview_id:interviewId,answer:answer };
+      const res = await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/api/interviews/handle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': process.env.REACT_APP_FLASK_API_KEY },
         body: JSON.stringify(payload),
       });
 
@@ -366,31 +369,33 @@ const UserInterviewRoom = () => {
       }
 
       const data = await res.json();
-      if (data.final_report) {
+      if (data.stop===true) {
         setInterviewEnded(true);
         setIsInterviewStarted(false);
         setShowCompleteModal(true);
-        console.log('Final Report:', data.final_report);
-         console.log(data.final_report.candidate_overview.summary);
-         const report=data.final_report;
+        const report=await fetch(`${process.env.REACT_APP_FLASK_API_BASE_URL}/api/reports/${interviewId}`,{
+          method:'GET',
+        });
+        const data=await report.json();
+         const final_report=data.report;
          const add=await fetch(`${process.env.REACT_APP_API_BASE_URL}/update-report/${reportId}`,{
           method:'PUT',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({final_report:report})
+          body:JSON.stringify({final_report:final_report})
          });
           const addData=await add.json();
           console.log('Report update response:', addData);
           
 
         speakThenListen('Interview finished! Thank you.');
-      } else if (data.next_question) {
+      }
+      // } else if (data.question) {
+      else{
         setAiQuestion(data.next_question);
         setUserAnswer('');
         finalTranscriptRef.current = ''; // reset for new question
         restartAttemptsRef.current = 0;
-      } else {
-        setAiQuestion('Waiting for next question...');
-      }
+      } 
     } catch (err) {
       console.error('Submit error:', err);
       setStatusMessage(`Error submitting your answer: ${err.message}`);
