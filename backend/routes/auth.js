@@ -30,12 +30,17 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 // In your auth.js file, update the email transporter configuration
 
 const sendOtpEmail = async (email, otp) => {
-  let transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { 
-      user: process.env.EMAIL_USER, 
-      pass: process.env.EMAIL_PASS 
-    }
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,          // ✅ REQUIRED
+    secure: false,      // ✅ MUST be false for port 587
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS, // ✅ Gmail App Password
+    },
+    connectionTimeout: 10000, // ✅ prevents Render timeout
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 
   const emailSubject = "Interview.ai: Your One-Time Verification Code (OTP)";
