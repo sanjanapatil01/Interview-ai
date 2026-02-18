@@ -7,7 +7,7 @@ import InterviewSchedule from "../models/InterviewSchedule.js";
 import FinalReport from "../models/FinalReport.js";
 import admin from "../config/firebaseAdmin.js";
 import multer from "multer";
-
+import mongoose from "mongoose";
 const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -318,8 +318,6 @@ router.post('/generate', async (req, res) => {
         res.status(500).json({ message: 'Error generating interview link.' });
     }
 });
-// ✅ CHECK SESSION EMAIL
-const mongoose = require("mongoose");
 
 router.get("/check_session/:sessionId/:email", async (req, res) => {
   try {
