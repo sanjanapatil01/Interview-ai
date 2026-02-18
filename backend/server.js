@@ -12,14 +12,14 @@ dotenv.config();
 connectDB();
 
 const app = express();
-const corsOptions = {
-    origin: ['http://localhost:3000','http://localhost:3001','https://rwdtwzmr-3001.inc1.devtunnels.ms','https://rwdtwzmr-3001.inc1.devtunnels.ms/'], // Only allow your frontend's origin
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+// const corsOptions = {
+//     origin: ['http://localhost:3000','http://localhost:3001','https://rwdtwzmr-3001.inc1.devtunnels.ms','https://rwdtwzmr-3001.inc1.devtunnels.ms/'], // Only allow your frontend's origin
+//     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
 
-    credentials: true, // If you're using cookies/sessions
-};
+//     credentials: true, // If you're using cookies/sessions
+// };
 
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(express.json());
 
 app.use("/api", authRoutes);

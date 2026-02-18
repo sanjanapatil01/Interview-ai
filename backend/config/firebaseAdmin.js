@@ -21,7 +21,7 @@ if (!admin.apps.length) {
     else {
       const serviceAccountPath = path.join(
         __dirname,
-        "/interviewai-237e4-firebase-adminsdk-fbsvc-a57c0a1336.json"
+        "/interviewai-237e4-firebase-adminsdk-fbsvc-1a041a83d9.json"
       );
 
       const serviceAccount = JSON.parse(
