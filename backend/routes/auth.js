@@ -6,10 +6,9 @@ import User from "../models/User.js";
 import InterviewSchedule from "../models/InterviewSchedule.js";
 import FinalReport from "../models/FinalReport.js";
 import admin from "../config/firebaseAdmin.js";
-
+import multer from "multer";
 
 const router = express.Router();
-const multer = require("multer");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
