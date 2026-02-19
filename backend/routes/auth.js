@@ -29,18 +29,21 @@ const upload = multer({ storage: storage });
 // In your auth.js file, update the email transporter configuration
 
 const sendOtpEmail = async (email, otp) => {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,          // ✅ REQUIRED
-    secure: false,      // ✅ MUST be false for port 587
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS, // ✅ Gmail App Password
-    },
-    connectionTimeout: 10000, // ✅ prevents Render timeout
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
+ const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,          // ✅ REQUIRED
+  secure: false,      // ✅ MUST be false for port 587
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, // ✅ Gmail App Password
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  tls: {
+    rejectUnauthorized: false, // ✅ Add this line
+  },
+});
 
   const emailSubject = "Interview.ai: Your One-Time Verification Code (OTP)";
   
