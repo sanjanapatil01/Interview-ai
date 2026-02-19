@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { updatePassword } from "firebase/auth";
-import { auth } from "../Firebase"; // Assuming your Firebase config is in "../Firebase"
-import "./Home.css";
+
 
 const EditProfile = () => {
   const [formData, setFormData] = useState({
@@ -12,43 +10,43 @@ const EditProfile = () => {
     uid: "", // Store UID for reference
   });
   const [loading, setLoading] = useState(false);
-  const [initialEmail, setInitialEmail] = useState(""); // Used for security check
 
   // --- Fetch Current Profile Data on Load ---
-  useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+useEffect(() => {
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          setFormData({
-            ...formData,
-            username: data.username,
-            email: data.email,
-            uid: data.uid,
-          });
-          setInitialEmail(data.email); // Store initial email for change detection
-        } else {
-          alert("Failed to fetch current profile data.");
-        }
-      } catch (error) {
-        console.error("Fetch profile error:", error);
-        alert("An error occurred while loading profile.");
+      if (response.ok) {
+        const data = await response.json();
+
+        setFormData(prev => ({
+          ...prev,
+          username: data.username,
+          email: data.email,
+          uid: data.uid,
+        }));
+      } else {
+        alert("Failed to fetch current profile data.");
       }
-      setLoading(false);
-    };
+    } catch (error) {
+      console.error("Fetch profile error:", error);
+      alert("An error occurred while loading profile.");
+    }
+    setLoading(false);
+  };
 
-    fetchProfile();
-  }, []);
+  fetchProfile();
+}, []);
+
   // ------------------------------------------
 
   const handleChange = (e) => {
