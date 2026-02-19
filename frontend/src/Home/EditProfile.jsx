@@ -75,7 +75,7 @@ useEffect(() => {
       };
 
       // 1. Send Update Request to Backend (MongoDB & Firebase Password Update)
-      const response = await fetch("http://localhost:8000/api/profile", {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/profile`, {
         method: "PUT",
         headers: {
           "Authorization": `Bearer ${token}`,
