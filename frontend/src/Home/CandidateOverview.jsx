@@ -527,20 +527,6 @@ const CandidateOverview = () => {
                       }}
                     />
 
-                    {/* Action Message */}
-                    {actionMessage && (
-                      <p style={{
-                        padding: '10px',
-                        marginBottom: '12px',
-                        borderRadius: '4px',
-                        backgroundColor: actionMessage.includes('✅') ? '#e8f5e9' : '#ffebee',
-                        color: actionMessage.includes('✅') ? '#2e7d32' : '#c62828',
-                        fontSize: '0.9em'
-                      }}>
-                        {actionMessage}
-                      </p>
-                    )}
-
                     {/* Select/Reject Buttons */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <button
