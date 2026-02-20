@@ -31,14 +31,14 @@ const UserForm = () => {
   };
 useEffect(() => {
     console.log("Fetched session ID from URL:", sessionId);
-    const interviewerid=fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}`)
+    fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}`)
     .then(response => response.json())
     .then(data => {
-        setInterviewerId(data.interviewerId);
-        console.log("Fetched interviewer ID:", data.interviewerId);
+      setInterviewerId(data.interviewerId);
+      console.log("Fetched interviewer ID:", data.interviewerId);
     })
     .catch(error => {
-        console.error("Error fetching interviewer ID:", error);
+      console.error("Error fetching interviewer ID:", error);
     });
 }, [sessionId]);
 
