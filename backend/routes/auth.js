@@ -7,10 +7,10 @@ import FinalReport from "../models/FinalReport.js";
 import admin from "../config/firebaseAdmin.js";
 import multer from "multer";
 import mongoose from "mongoose";
-import sgMail from "@sendgrid/mail";
+
 import dotenv from "dotenv";
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-console.log("SendGrid key loaded:", !!process.env.SENDGRID_API_KEY);
+import { Resend } from "resend";
+const resend = new Resend(process.env.RESEND_API_KEY);
 const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -30,11 +30,12 @@ const upload = multer({ storage: storage });
 // -------------------------------------------------------------------
 
 // In your auth.js file, update the email transporter configuration
+
 const sendOtpEmail = async (email, otp) => {
-  const msg = {
-    to: email,
+  await resend.emails.send({
     from: process.env.EMAIL_SENDER,
-    subject: "Interview.ai: Your One-Time Verification Code (OTP)",
+    to: email,
+    subject: "Interview.ai :your one-time password (OTP)",
     text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
     html: `
       <h2>Your OTP: ${otp}</h2>
@@ -43,9 +44,7 @@ const sendOtpEmail = async (email, otp) => {
       <br/>
       <strong>Interview.ai Security Team</strong>
     `,
-  };
-
-  await sgMail.send(msg);
+  });
 };
 // -------------------------------------------------------------------
 // 3. AUTHENTICATE MIDDLEWARE (VERIFIES CUSTOM JWT)
@@ -485,15 +484,12 @@ router.post("/candidate-action", async (req, res) => {
           <strong>Interview.ai Team</strong>
         `;
 
-    // 3️⃣ Send email using SendGrid
-    const msg = {
-      to: candidateEmail,
-      from: process.env.EMAIL_SENDER,
-      subject: emailSubject,
-      html: emailBody,
-    };
-
-    await sgMail.send(msg);
+    await resend.emails.send({
+  from: process.env.EMAIL_SENDER,
+  to: candidateEmail,
+  subject: emailSubject,
+  html: emailBody,
+});
 
     // 4️⃣ Populate decided_by details
     const populatedReport = await FinalReport.findById(updatedReport._id).populate(
