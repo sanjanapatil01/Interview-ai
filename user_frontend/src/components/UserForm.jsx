@@ -1,5 +1,5 @@
 // export default UserForm;
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {  useNavigate, useParams } from 'react-router-dom';
 import './userForm.css';
 
@@ -21,7 +21,6 @@ const UserForm = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [interviewerId, setInterviewerId] = useState(null);
   
   const [reportId, setReportId] = useState(null);
 

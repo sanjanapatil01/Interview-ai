@@ -13,21 +13,21 @@ const UserInterviewRoom = () => {
   const [timer, setTimer] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Preparing your interview...');
   const [aiQuestion, setAiQuestion] = useState('');
-  const [userAnswer, setUserAnswer] = useState('');
+  const [, setUserAnswer] = useState('');
   const [interviewId, setInterviewId] = useState(null);
-  const [candidateId, setCandidateId] = useState(null);
-  const [resumeId, setResumeId] = useState(null);
+  const [, setCandidateId] = useState(null);
+  const [, setResumeId] = useState(null);
   const [reportId, setReportId] = useState(null);
   const [micError, setMicError] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [interviewEnded, setInterviewEnded] = useState(false);
+  const [, setInterviewEnded] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   // timers & refs
   
   const [thinkTimeLeft, setThinkTimeLeft] = useState(0);
-  const [answerTimeLeft, setAnswerTimeLeft] = useState(0);
+  const [, setAnswerTimeLeft] = useState(0);
   const thinkIntervalRef = useRef(null);
   const answerIntervalRef = useRef(null); // total-answer interval ref
 
@@ -45,7 +45,7 @@ const UserInterviewRoom = () => {
   // extract navigation state
   useEffect(() => {
     if (location?.state) {
-      const { candidateId:candidateId,interviewId:interviewId,firstQuestion:firstQuestion,resumeId:resumeId,reportId:reportId } = location.state;
+      const { candidateId, interviewId, firstQuestion, resumeId, reportId } = location.state;
       setInterviewId(interviewId || null);
       setCandidateId(candidateId || null);
       setResumeId(resumeId || null);
