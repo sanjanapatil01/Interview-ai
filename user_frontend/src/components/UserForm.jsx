@@ -21,6 +21,7 @@ const UserForm = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [interviewerId, setInterviewerId] = useState(null);
   
   const [reportId, setReportId] = useState(null);
 
@@ -28,18 +29,18 @@ const UserForm = () => {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-// useEffect(() => {
-//     console.log("Fetched session ID from URL:", sessionId);
-//     const interviewerid=fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}`)
-//     .then(response => response.json())
-//     .then(data => {
-//         setInterviewerId(data.interviewerId);
-//         console.log("Fetched interviewer ID:", data.interviewerId);
-//     })
-//     .catch(error => {
-//         console.error("Error fetching interviewer ID:", error);
-//     });
-// }, [sessionId]);
+useEffect(() => {
+    console.log("Fetched session ID from URL:", sessionId);
+    const interviewerid=fetch(`${process.env.REACT_APP_API_BASE_URL}/check_session/${sessionId}`)
+    .then(response => response.json())
+    .then(data => {
+        setInterviewerId(data.interviewerId);
+        console.log("Fetched interviewer ID:", data.interviewerId);
+    })
+    .catch(error => {
+        console.error("Error fetching interviewer ID:", error);
+    });
+}, [sessionId]);
 
   const allowedTypes = [
     'application/pdf',
