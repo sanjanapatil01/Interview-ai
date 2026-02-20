@@ -43,7 +43,7 @@ const GenerateLink = ({ interviewDate, setInterviewDate, startTime, setStartTime
       }
 
       const responseData = await response.json();
-      const newLink = `${process.env.REACT_APP_USER_URL}/${responseData.sessionId}`;
+      const newLink = `${process.env.REACT_APP_USER_URL}interviewcheck/${responseData.sessionId}`;
       setGeneratedLink(newLink);
     } catch (err) {
       setError(err.message);
