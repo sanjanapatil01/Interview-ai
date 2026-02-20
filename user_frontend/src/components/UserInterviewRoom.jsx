@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef ,useParams} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import InterviewCompleteModal from './InterviewCompleteModal';
@@ -25,6 +25,7 @@ const UserInterviewRoom = () => {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   // timers & refs
+  
   const [thinkTimeLeft, setThinkTimeLeft] = useState(0);
   const [answerTimeLeft, setAnswerTimeLeft] = useState(0);
   const thinkIntervalRef = useRef(null);

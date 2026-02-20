@@ -1,13 +1,15 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import User from "../models/User.js";
 import InterviewSchedule from "../models/InterviewSchedule.js";
 import FinalReport from "../models/FinalReport.js";
 import admin from "../config/firebaseAdmin.js";
 import multer from "multer";
 import mongoose from "mongoose";
+import sgMail from "@sendgrid/mail";
+import dotenv from "dotenv";
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -27,54 +29,23 @@ const upload = multer({ storage: storage });
 // -------------------------------------------------------------------
 
 // In your auth.js file, update the email transporter configuration
-
 const sendOtpEmail = async (email, otp) => {
- const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,          // ✅ REQUIRED
-  secure: false,      // ✅ MUST be false for port 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // ✅ Gmail App Password
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-  tls: {
-    rejectUnauthorized: false, // ✅ Add this line
-  },
-});
-
-  const emailSubject = "Interview.ai: Your One-Time Verification Code (OTP)";
-  
-  const emailBody = `
-Dear Interview.ai User,
-
-Your One-Time Verification Code (OTP) is:
-
-                 ${otp}
-
-This code is essential to complete your account verification or password reset request.
-
-Please enter this code on the Interview.ai website within the next 10 minutes, as it will expire shortly for your security.
-
----
-Security Reminder:
-If you did NOT request this code, please immediately disregard this email. Do not share this OTP with anyone, as it grants access to your account verification process.
----
-
-Thank you,
-The Interview.ai Security Team
-`;
-
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
+  const msg = {
     to: email,
-    subject: emailSubject, 
-    text: emailBody, 
-  });
-};
+    from: process.env.EMAIL_SENDER,
+    subject: "Interview.ai: Your One-Time Verification Code (OTP)",
+    text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
+    html: `
+      <h2>Your OTP: ${otp}</h2>
+      <p>This code expires in 10 minutes.</p>
+      <p>If you did not request this, please ignore.</p>
+      <br/>
+      <strong>Interview.ai Security Team</strong>
+    `,
+  };
 
+  await sgMail.send(msg);
+};
 // -------------------------------------------------------------------
 // 3. AUTHENTICATE MIDDLEWARE (VERIFIES CUSTOM JWT)
 // Used for ALL protected routes EXCEPT /login
@@ -461,75 +432,86 @@ router.get('/candidates/:userId', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-router.post('/candidate-action', async (req, res) => {
+router.post("/candidate-action", async (req, res) => {
   try {
-    const { 
-      candidateId, 
-      candidateEmail, 
-      candidateName, 
-      action, 
-      companyName, 
-      interviewerId 
+    const {
+      candidateId,
+      candidateEmail,
+      candidateName,
+      action,
+      companyName,
+      interviewerId,
     } = req.body;
 
-    if (!candidateEmail || !action || !companyName) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!candidateEmail || !action || !companyName || !candidateId) {
+      return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Update FinalReport with decision status
+    // 1️⃣ Update FinalReport with decision
     const updatedReport = await FinalReport.findByIdAndUpdate(
       candidateId,
-      { 
-        decision_status: action, // 'selected' or 'rejected'
+      {
+        decision_status: action, // selected / rejected
         company_name: companyName,
         decision_date: new Date(),
-        decided_by: interviewerId
+        decided_by: interviewerId,
       },
       { new: true, upsert: true }
     );
 
-    // ✅ FIXED: Use correct transporter config
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS  // Use App Password, not regular password
-      }
-    });
+    // 2️⃣ Email content
+    const emailSubject =
+      action === "selected"
+        ? `🎉 Congratulations! You have been Selected by ${companyName}`
+        : `Interview Update: Your Status with ${companyName}`;
 
-    const emailSubject = action === 'selected' 
-      ? `🎉 Congratulations! You have been Selected by ${companyName}`
-      : `Interview Update: Your Status with ${companyName}`;
+    const emailBody =
+      action === "selected"
+        ? `
+          <h2>Congratulations ${candidateName}!</h2>
+          <p>You have been <strong>SELECTED</strong> by <strong>${companyName}</strong>.</p>
+          <p>We will contact you soon with further details.</p>
+          <br/>
+          <strong>Interview.ai Team</strong>
+        `
+        : `
+          <h2>Interview Update</h2>
+          <p>Dear ${candidateName},</p>
+          <p>Thank you for interviewing with <strong>${companyName}</strong>.</p>
+          <p>Unfortunately, we will not be moving forward at this time.</p>
+          <p>We wish you all the best.</p>
+          <br/>
+          <strong>Interview.ai Team</strong>
+        `;
 
-    const emailBody = action === 'selected'
-      ? `<h2>Congratulations ${candidateName}!</h2>
-         <p>We are pleased to inform you that you have been <strong>SELECTED</strong> by <strong>${companyName}</strong>.</p>
-         <p>We will contact you soon with further details.</p>
-         <p>Best regards,<br>Interview.ai Team</p>`
-      : `<h2>Update: ${candidateName}</h2>
-         <p>Thank you for interviewing with <strong>${companyName}</strong>.</p>
-         <p>Unfortunately, we have decided not to move forward at this time.</p>
-         <p>We appreciate your time and effort. Best of luck with your future endeavors!</p>
-         <p>Best regards,<br>Interview.ai Team</p>`;
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    // 3️⃣ Send email using SendGrid
+    const msg = {
       to: candidateEmail,
+      from: process.env.EMAIL_SENDER,
       subject: emailSubject,
-      html: emailBody
-    });
+      html: emailBody,
+    };
 
-    // Fetch the updated report populated with decided_by details
-    const populatedReport = await FinalReport.findById(updatedReport._id).populate('decided_by', 'name email');
+    await sgMail.send(msg);
 
-    res.json({ 
-      message: `Candidate ${action} successfully. Email sent to ${candidateEmail}`,
+    // 4️⃣ Populate decided_by details
+    const populatedReport = await FinalReport.findById(updatedReport._id).populate(
+      "decided_by",
+      "name email"
+    );
+
+    res.json({
       success: true,
-      updatedReport: populatedReport
+      message: `Candidate ${action} successfully. Email sent.`,
+      updatedReport: populatedReport,
     });
   } catch (error) {
-    console.error('Error processing candidate action:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error("Error processing candidate action:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
   }
 });
 
