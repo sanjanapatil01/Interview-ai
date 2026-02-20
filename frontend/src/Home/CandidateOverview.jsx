@@ -9,7 +9,7 @@ const CandidateOverview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionMessage, setActionMessage] = useState("");
+  const [, setActionMessage] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedCandidates, setSelectedCandidates] = useState([]);
