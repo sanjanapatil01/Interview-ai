@@ -10,6 +10,7 @@ import mongoose from "mongoose";
 import sgMail from "@sendgrid/mail";
 import dotenv from "dotenv";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+console.log("SendGrid key loaded:", !!process.env.SENDGRID_API_KEY);
 const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
