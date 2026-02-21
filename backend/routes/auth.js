@@ -11,6 +11,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
+console.log("Resend key loaded:", !!process.env.RESEND_API_KEY);
 const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -32,7 +33,7 @@ const upload = multer({ storage: storage });
 // In your auth.js file, update the email transporter configuration
 
 const sendOtpEmail = async (email, otp) => {
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: process.env.EMAIL_SENDER,
     to: email,
     subject: "Interview.ai :your one-time password (OTP)",
@@ -45,6 +46,8 @@ const sendOtpEmail = async (email, otp) => {
       <strong>Interview.ai Security Team</strong>
     `,
   });
+    console.log("Resend result:", result);
+
 };
 // -------------------------------------------------------------------
 // 3. AUTHENTICATE MIDDLEWARE (VERIFIES CUSTOM JWT)
