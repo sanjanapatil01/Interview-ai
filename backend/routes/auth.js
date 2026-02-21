@@ -34,7 +34,7 @@ const upload = multer({ storage: storage });
 
 const sendOtpEmail = async (email, otp) => {
   const result = await resend.emails.send({
-    from: process.env.EMAIL_SENDER,
+    from: "onboarding@resend.dev",
     to: email,
     subject: "Interview.ai :your one-time password (OTP)",
     text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
@@ -488,7 +488,7 @@ router.post("/candidate-action", async (req, res) => {
         `;
 
     await resend.emails.send({
-  from: process.env.EMAIL_SENDER,
+  from: "onboarding@resend.dev",
   to: candidateEmail,
   subject: emailSubject,
   html: emailBody,
