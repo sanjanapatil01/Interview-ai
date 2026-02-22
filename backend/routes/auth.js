@@ -369,11 +369,13 @@ router.put("/update-report/:reportId", async (req, res) => {
   const report=req.body;
   const { reportId } = req.params;
   try{
+    console.log("Update report payload:", JSON.stringify(report, null, 2)); // DEBUG
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
       return res.status(400).json({ message: "Invalid reportId" });
     }
     // Normalize payload: support both { final_report: {...} } and direct report object
     const payload = report.final_report || report;
+    console.log("Normalized payload:", JSON.stringify(payload, null, 2)); // DEBUG
 
     // Build update map with safe optional chaining (handles missing fields)
     const updates = {

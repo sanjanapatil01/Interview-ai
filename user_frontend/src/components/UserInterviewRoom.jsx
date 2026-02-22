@@ -379,6 +379,7 @@ const UserInterviewRoom = () => {
         });
         const data=await report.json();
          const final_report=data.report;
+         console.log('Final report from Flask API:', final_report);
          const add=await fetch(`${process.env.REACT_APP_API_BASE_URL}/update-report/${reportId}`,{
           method:'PUT',
           headers:{'Content-Type':'application/json'},
