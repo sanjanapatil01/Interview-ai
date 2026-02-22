@@ -37,7 +37,6 @@ const UserInterviewRoom = () => {
   const totalAnswerElapsedRef = useRef(0); // seconds elapsed since answer session started
   const restartAttemptsRef = useRef(0);
   const inactivityTimeoutRef = useRef(null);
-  const firstQuestionAskedRef = useRef(false); // prevent first question from being asked multiple times
 
   const MAX_RESTARTS = 6;
   const MAX_ANSWER_SECONDS = 120; // 2 minutes hard cap
@@ -96,8 +95,7 @@ const UserInterviewRoom = () => {
 
   // when aiQuestion updates, speak question immediately then listen for answer
   useEffect(() => {
-    if (aiQuestion && isInterviewStarted && !firstQuestionAskedRef.current) {
-      firstQuestionAskedRef.current = true;
+    if (aiQuestion && isInterviewStarted) {
       finalTranscriptRef.current = '';
       totalAnswerElapsedRef.current = 0;
       setAnswerTimeLeft(MAX_ANSWER_SECONDS);
@@ -110,11 +108,6 @@ const UserInterviewRoom = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiQuestion, isInterviewStarted]);
-
-  // Reset the ref when a NEW question arrives (different from current)
-  useEffect(() => {
-    firstQuestionAskedRef.current = false;
-  }, [aiQuestion]);
 
   const clearThinkInterval = () => {
     if (thinkIntervalRef.current) {
@@ -391,7 +384,7 @@ const UserInterviewRoom = () => {
          const add=await fetch(`${process.env.REACT_APP_API_BASE_URL}/update-report/${reportId}`,{
           method:'PUT',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({final_report:final_report})
+          body:JSON.stringify({final_report:data})
          });
           const addData=await add.json();
           console.log('Report update response:', addData);
