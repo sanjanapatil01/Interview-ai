@@ -37,6 +37,7 @@ const UserInterviewRoom = () => {
   const totalAnswerElapsedRef = useRef(0); // seconds elapsed since answer session started
   const restartAttemptsRef = useRef(0);
   const inactivityTimeoutRef = useRef(null);
+  const firstQuestionAskedRef = useRef(false); // prevent first question from being asked multiple times
 
   const MAX_RESTARTS = 6;
   const MAX_ANSWER_SECONDS = 120; // 2 minutes hard cap
@@ -95,7 +96,8 @@ const UserInterviewRoom = () => {
 
   // when aiQuestion updates, speak question immediately then listen for answer
   useEffect(() => {
-    if (aiQuestion && isInterviewStarted) {
+    if (aiQuestion && isInterviewStarted && !firstQuestionAskedRef.current) {
+      firstQuestionAskedRef.current = true;
       finalTranscriptRef.current = '';
       totalAnswerElapsedRef.current = 0;
       setAnswerTimeLeft(MAX_ANSWER_SECONDS);
@@ -108,6 +110,11 @@ const UserInterviewRoom = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiQuestion, isInterviewStarted]);
+
+  // Reset the ref when a NEW question arrives (different from current)
+  useEffect(() => {
+    firstQuestionAskedRef.current = false;
+  }, [aiQuestion]);
 
   const clearThinkInterval = () => {
     if (thinkIntervalRef.current) {
@@ -378,6 +385,7 @@ const UserInterviewRoom = () => {
           method:'GET',
         });
         const data=await report.json();
+        console.log('Report data from Flask API:', data);
          const final_report=data.report;
          console.log('Final report from Flask API:', final_report);
          const add=await fetch(`${process.env.REACT_APP_API_BASE_URL}/update-report/${reportId}`,{
